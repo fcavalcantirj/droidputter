@@ -1,0 +1,1 @@
+2026-09-02 [REAL] Reflashed apps/pense-bem env:m5cardputer (normal build) after the S5 bench sweep so later hardware tasks see the app, not the bench burst.
