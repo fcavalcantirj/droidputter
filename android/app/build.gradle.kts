@@ -49,4 +49,5 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("com.github.mik3y:usb-serial-for-android:3.8.0")
+    implementation("androidx.core:core-ktx:1.13.1")
 }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Espressif native USB-CDC, vendor 0x303A = 12346. ESP32-S3 default product 0x1001 = 4097. -->
+    <usb-device vendor-id="12346" product-id="4097" />
+    <!-- Match any Espressif native-USB product id so a re-flashed device still triggers the intent. -->
+    <usb-device vendor-id="12346" />
+</resources>
