@@ -279,6 +279,7 @@ An Android app that:
 ## Roadmap
 
 - **M1** — Tier-1 WiFi mirror against stock Bruce (screen + keyboard). *Proves the whole idea.*
+  **Build spec: [M1-SPEC.md](./M1-SPEC.md)** (client contract, S0 spike, DoD, test plan).
 - **M2** — USB-OTG transport (wired, powers the board, best latency).
 - **M3** — Tier-2 GPS injection (phone → ESP NMEA); demo wardriving with no GPS module.
 - **M4** — Draft the open **Companion Protocol** (framing, input, sensor feeds) — propose to Bruce.
