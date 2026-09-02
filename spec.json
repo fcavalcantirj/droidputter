@@ -187,7 +187,7 @@
       "Build exits 0. If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed. Hardware: typed characters appear on the Mac receiver; keys injected from the Mac appear on the TFT.",
       "Verify: `cd apps/m5-example && pio run` exits 0 and fixtures/m5-example/keys.bin exists."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",

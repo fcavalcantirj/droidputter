@@ -57,6 +57,14 @@ void begin(const char* app, uint16_t w, uint16_t h, uint8_t rot) {
   if (internal::started) return;
   internal::started = true; if (app) strncpy(app_name, app, 31);
   internal::scr_w = w; internal::scr_h = h; internal::scr_rot = rot;
+  // Some apps (e.g. the vendored M5Cardputer inputText example) never call
+  // Serial.begin() themselves and rely on ARDUINO_USB_CDC_ON_BOOT alone --
+  // that leaves the HWCDC ring buffers unset and every tee write silently
+  // no-ops. HWCDC::begin() is idempotent (only allocates if not already
+  // set up), so calling it here is a no-op for apps that already begin()
+  // their own Serial and the fix for apps that never do -- either way the
+  // shim, not the app, owns making the tee transparently work.
+  Serial.begin(115200);
   Serial.setTxBufferSize(DROIDPUTTER_TXBUF); Serial.setTxTimeoutMs(20); sendHello();
 }
 // ---- phone -> ESP ----
