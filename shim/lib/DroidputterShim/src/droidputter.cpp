@@ -1,6 +1,7 @@
 #include "droidputter.h"
 #include "dp_internal.h"
 #include "dp_keys.h"
+#include "dp_gps.h"
 // Arduino/M5GFX-only: guarded so `pio test -e native` (dp_frame.{h,cpp}, dp_rle.{h,cpp})
 // can compile this library's src/ directory without pulling in ESP32 headers.
 #ifdef ARDUINO
@@ -62,6 +63,7 @@ void begin(const char* app, uint16_t w, uint16_t h, uint8_t rot) {
 static uint8_t rx[128]; static uint8_t rxn;
 static void onFrame(uint8_t type, const uint8_t* p, uint16_t n) {
   if (type == KEY && n >= 3) { dp_keys_push(p[0], p[1], p[2]); }
+  else if (type == GPS_NMEA) { dp_gps_push(p, n); }
   else if (type == HELLO_ACK) { internal::linked = true; sendHello(); internal::resync();
 #ifdef DROIDPUTTER_BENCH
     extern void dp_display_bench(int frames);
@@ -90,4 +92,17 @@ void poll() {
 }
 uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max) { return dp_keys_snapshot(rows, cols, max); }
 }  // namespace dp
+
+// Arduino Stream over dp_gps.h's ring (see droidputter.h: droidputter_gps()).
+// Inbound-only: write() is a no-op, this is not a real UART, just the queue
+// GPS_NMEA frames land in.
+class DroidputterGPS : public Stream {
+ public:
+  int available() override { return (int)dp::dp_gps_available(); }
+  int read() override { return dp::dp_gps_read(); }
+  int peek() override { return dp::dp_gps_peek(); }
+  size_t write(uint8_t) override { return 0; }
+};
+static DroidputterGPS gpsStream;
+Stream& droidputter_gps() { return gpsStream; }
 #endif  // ARDUINO

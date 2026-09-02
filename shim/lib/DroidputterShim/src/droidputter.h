@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stddef.h>
 namespace lgfx { inline namespace v1 { struct pixelcopy_t; } }
+#ifdef ARDUINO
+class Stream;  // arduino-esp32 2.x: global namespace, declared in Stream.h
+#endif
 namespace dp {
 enum : uint8_t { HELLO = 0x01, FILL = 0x02, RECT = 0x03, RECT_RLE = 0x04, STATS = 0x05, PING = 0x06,
                  KEY = 0x81, GPS_NMEA = 0x82, PING_IN = 0x83, HELLO_ACK = 0x84 };
@@ -14,7 +17,15 @@ void repeat(uint32_t rawcolor, uint32_t npixels);
 void fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rawcolor);
 void pixel(uint16_t x, uint16_t y, uint32_t rawcolor);
 void pixelsConv(lgfx::v1::pixelcopy_t* param, uint32_t npixels);    // convert path
-void poll();                                                        // parse phone->ESP frames (keys)
+void poll();                                                        // parse phone->ESP frames (keys, GPS_NMEA); apps with no M5Cardputer Keyboard_Class (e.g. gps-demo) must call this themselves
 // injected keys (row,col) currently held; returns count, fills out[max]
 uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max);
 }
+
+#ifdef ARDUINO
+// GPS_NMEA (0x82) frames from the phone, exposed as a Stream so an app reads
+// its GPS exactly as it would a UART: `while (droidputter_gps().available())
+// gps.encode(droidputter_gps().read());`. Backed by dp_gps.h's ring; the only
+// app-side change needed to move a UART-based GPS app onto the phone's GPS.
+Stream& droidputter_gps();
+#endif

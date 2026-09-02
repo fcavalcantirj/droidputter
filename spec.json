@@ -177,7 +177,7 @@
       "Add apps/gps-demo/: a 40-line M5Unified app that prints lat/lon/sats/time from TinyGPSPlus on the display, built for the Cardputer ADV and the virtual env.",
       "Verify: `cd shim && pio test -e native` exits 0 and `cd apps/gps-demo && pio run` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",

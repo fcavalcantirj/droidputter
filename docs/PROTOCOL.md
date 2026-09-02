@@ -66,7 +66,7 @@ free" line was read from (see worked example below, byte-exact match).
 | type | name | payload |
 |------|------|---------|
 | 0x81 | KEY | `row u8, col u8, state u8 (1 down / 0 up)` — Cardputer 4x14 physical matrix, row 0 = top row `esc..del`, col 0 = leftmost |
-| 0x82 | GPS_NMEA | one NMEA sentence, no CRLF (reserved for the GPS milestone, not sent yet) |
+| 0x82 | GPS_NMEA | one NMEA sentence, no CRLF -- queued into a 1 KB ring (whole sentences, CRLF appended) behind `droidputter_gps()`, an Arduino `Stream` an app reads exactly like a GPS UART (`dp_gps.h`, `apps/gps-demo`) |
 | 0x83 | PING_IN | 0 B payload |
 | 0x84 | HELLO_ACK | `w u16, h u16` — phone screen size; ESP replies by re-sending HELLO and (bench builds) starts the throughput test |
 
