@@ -12,3 +12,4 @@ android/local.properties
 apps/*/lib/M5GFX/
 apps/*/lib/M5Cardputer/
 !fixtures/**/*.bin
+.env*.local
