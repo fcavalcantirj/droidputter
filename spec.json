@@ -32,7 +32,7 @@
       "Add `python3 tools/dp_receiver.py --selftest`: feeds a synthetic byte string containing a HELLO, one FILL, one RECT split across two chunks and one corrupted sync, asserts the framer yields exactly 3 frames and resyncs.",
       "Verify: `python3 tools/dp_receiver.py --selftest` exits 0 and prints `selftest ok`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "protocol",

@@ -92,7 +92,7 @@ def selftest():
     assert fr.bad == 1; s.png("/tmp/dp_selftest.png"); print("selftest ok", names); return 0
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--record"); ap.add_argument("--png"); ap.add_argument("--selftest", action="store_true"); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--record"); ap.add_argument("--png"); ap.add_argument("--key"); ap.add_argument("--selftest", action="store_true"); a = ap.parse_args()
     if a.selftest: sys.exit(selftest())
     import serial
     port = a.port or (glob.glob("/dev/cu.usbmodem*") + [None])[0]
@@ -125,6 +125,12 @@ def main():
         if recj: recj.write(json.dumps({"t_ms": round((time.monotonic() - t0) * 1000, 1), "dir": "out", "hex": f.hex()}) + "\n")
     threading.Thread(target=reader, daemon=True).start()
     print("port", port); send(HELLO_ACK, struct.pack("<HH", 1080, 2400))
+    if a.key:
+        r, c = [int(v) for v in a.key.split(",")]
+        st["last_key_t"] = time.monotonic()
+        send(KEY, bytes([r, c, 1])); time.sleep(0.08); send(KEY, bytes([r, c, 0]))
+        time.sleep(0.5); run[0] = False; time.sleep(0.1); ser.close()
+        print("bytes", st["bytes"], "frames", st["frames"], "bad", fr.bad, st.get("esp")); return
     try:
         for line in sys.stdin:
             line = line.strip()
