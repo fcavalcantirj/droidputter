@@ -83,6 +83,20 @@ phone-GPS-to-ESP is a solved pattern.
 - Cardputer Ultimate Remote (IR profiles; not phone-remote, but ecosystem): https://github.com/geo-tp/Ultimate-Remote
 - M5Stack Tab5 Android console (mirror/control Android over USB/WiFi): https://www.hackster.io/hiroki_kawakami/m5stack-tab5-android-console-cc265b
 
+### Kindred name, DIFFERENT mechanism (do not confuse with Androputer)
+- **"Phoneputer"** (MWLabs) — installs **NixOS / full Linux on an old Android phone** (OnePlus 6) +
+  a wireless keyboard → the *phone itself* becomes a standalone Linux pocket computer. **No ESP32,
+  no Cardputer, no mirroring.** Validates the *cultural itch* (people want a "real" pocket computer),
+  not our mechanism (phone as screen/brain-companion for an ESP running radio firmware). Also: the
+  name "Phoneputer" is **taken**.
+  - Article: https://www.hackster.io/news/turn-your-phone-into-a-phoneputer-47027edb8224
+  - Repo: https://github.com/mwlaboratories/phoneputer
+
+### Community demand signal
+- r/CardPuter — *"Any way to load M5 Launcher from Android phone"* (people want the **Launcher**,
+  not just Bruce, reachable from Android — the exact demand for the M5GFX-shim path):
+  https://www.reddit.com/r/CardPuter/comments/1oz8hqj/any_way_to_load_m5_launcher_from_android_phone/
+
 ---
 
 ## Next step
