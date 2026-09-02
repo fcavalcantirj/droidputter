@@ -55,7 +55,7 @@
       "Record in progress.txt which libraries PlatformIO resolved (`ls .pio/libdeps/m5cardputer`).",
       "Verify: exit code 0 and `.pio/build/m5cardputer/firmware.bin` exists."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "spike",
