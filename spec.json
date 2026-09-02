@@ -198,7 +198,7 @@
       "Hardware: HELLO reports 240x135, the receiver renders the example, STATS.dropped 0 while idle. Label [REAL].",
       "Verify: progress.txt has the StickS3 [REAL] line (or UAT line)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "setup",
