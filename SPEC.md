@@ -70,6 +70,27 @@ this is where the project's lasting value is.
 
 **Design rule:** color-screen *mirroring* → WiFi or USB. BLE → input + Tier-2 sensor feeds.
 
+## What actually works — capability reality (stay honest)
+
+The phone does **not run** Cardputer apps — the **ESP runs them**; the phone is screen + keyboard +
+sensor feed. So "does X work" = "can the ESP's app be **shown, driven, and fed** from the phone."
+
+| Want | Verdict | Why / condition |
+|---|---|---|
+| **WiFi apps** (scan, deauth, evil-portal) | ✅ clean | WiFi radio is on the ESP; the app runs there. Phone shows + types. Caveat: don't run the *control link* over WiFi if the app seizes the radio — control over USB/BLE then. |
+| **BLE apps** | ✅ (BLE only) | BLE radio on the ESP. ESP32-S3 has **no classic Bluetooth** — a Cardputer hardware limit, not ours. Same control-transport caveat. |
+| **GPS** | ⚠️ conditional | Phone streams its GPS as **NMEA** into the ESP; works for firmware that reads external GPS (**Bruce, Marauder do**). An app that hardcodes an onboard module won't. |
+| **Arbitrary M5Burner apps** | ⚠️ the hard one | The phone mirrors **pixels**, but a random app doesn't broadcast its screen — only **Bruce (WebUI)** does today. Making *any* app mirror needs a **display-driver shim** (hook M5GFX/LovyanGFX so every app's draws + key-reads tunnel out). Doable *because* most Cardputer apps share that lib — but it's real work, not free. |
+
+**Architecture consequence — prefer USB-OTG for the control link.** Wired control leaves **both
+radios (WiFi + BLE) 100% free** for the app, carries GPS NMEA on the same cable, and gives the best
+latency. Mirror-over-WiFi only suits apps that don't seize the WiFi radio (one 2.4 GHz radio —
+can't sniff/hop channels *and* hold a control link at once).
+
+**The crux to prototype:** the **M5GFX / LovyanGFX display + input shim**. If it works, the *entire*
+Cardputer app catalog renders on the phone transparently — that's the genius move. Everything else
+(Bruce-first mirror, GPS feed) is proven plumbing around it. Until then, "any app" ≠ automatic.
+
 ## MVP definition (Tier 1, Bruce-first)
 
 An Android app that:
