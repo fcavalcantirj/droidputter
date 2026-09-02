@@ -166,7 +166,7 @@
       "Wire it into the patched Keyboard_Class::updateKeyList (both matrix and TCA8418 paths) as done in S3, replacing the S3 prototype.",
       "Verify: `cd shim && pio test -e native` exits 0; `cd apps/pense-bem && pio run` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",

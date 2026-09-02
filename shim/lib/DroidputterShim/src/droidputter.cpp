@@ -1,5 +1,6 @@
 #include "droidputter.h"
 #include "dp_internal.h"
+#include "dp_keys.h"
 // Arduino/M5GFX-only: guarded so `pio test -e native` (dp_frame.{h,cpp}, dp_rle.{h,cpp})
 // can compile this library's src/ directory without pulling in ESP32 headers.
 #ifdef ARDUINO
@@ -58,11 +59,9 @@ void begin(const char* app, uint16_t w, uint16_t h, uint8_t rot) {
   Serial.setTxBufferSize(DROIDPUTTER_TXBUF); Serial.setTxTimeoutMs(20); sendHello();
 }
 // ---- phone -> ESP ----
-static uint8_t rx[128]; static uint8_t rxn; static uint8_t held_r[16], held_c[16]; static uint8_t nheld;
+static uint8_t rx[128]; static uint8_t rxn;
 static void onFrame(uint8_t type, const uint8_t* p, uint16_t n) {
-  if (type == KEY && n >= 3) { uint8_t r = p[0], c = p[1], s = p[2]; int i = 0; for (; i < nheld; i++) if (held_r[i] == r && held_c[i] == c) break;
-    if (s) { if (i == nheld && nheld < 16) { held_r[nheld] = r; held_c[nheld] = c; nheld++; } }
-    else if (i < nheld) { for (int j = i; j + 1 < nheld; j++) { held_r[j] = held_r[j+1]; held_c[j] = held_c[j+1]; } nheld--; } }
+  if (type == KEY && n >= 3) { dp_keys_push(p[0], p[1], p[2]); }
   else if (type == HELLO_ACK) { internal::linked = true; sendHello(); internal::resync();
 #ifdef DROIDPUTTER_BENCH
     extern void dp_display_bench(int frames);
@@ -75,6 +74,13 @@ static void onFrame(uint8_t type, const uint8_t* p, uint16_t n) {
 }
 void poll() {
   if (!internal::started) return;
+  // Link-down releases every held key so a phone that disconnects mid-keypress
+  // never leaves a key stuck down on the ESP (no disconnect detection sets
+  // internal::linked back to false yet -- see droidputter.cpp task 14 notes --
+  // this reacts correctly once a future task adds it).
+  static bool wasLinked = false;
+  if (wasLinked && !internal::linked) dp_keys_release_all();
+  wasLinked = internal::linked;
   while (Serial.available()) { int b = Serial.read(); if (b < 0) break; rx[rxn++] = b;
     if (rxn == 1 && rx[0] != 0xD7) { rxn = 0; continue; } if (rxn == 2 && rx[1] != 0x50) { rxn = (rx[1] == 0xD7); rx[0] = 0xD7; continue; }
     if (rxn >= 5) { uint16_t len = rx[3] | (rx[4] << 8); if (len > 120) { rxn = 0; continue; } if (rxn == 5 + len + 1) { if (crc8(0, rx + 2, 3 + len) == rx[5 + len]) onFrame(rx[2], rx + 5, len); rxn = 0; } }
@@ -82,6 +88,6 @@ void poll() {
   uint32_t now = millis();
   if (now - last_stats >= 1000) { last_stats = now; uint8_t s[16]; uint32_t v[4] = { internal::st_frames, internal::st_bytes, internal::st_dropped, (uint32_t)ESP.getFreeHeap() }; memcpy(s, v, 16); send(STATS, s, 16); }
 }
-uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max) { uint8_t n = nheld < max ? nheld : max; memcpy(rows, held_r, n); memcpy(cols, held_c, n); return n; }
+uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max) { return dp_keys_snapshot(rows, cols, max); }
 }  // namespace dp
 #endif  // ARDUINO
