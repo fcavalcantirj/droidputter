@@ -73,6 +73,22 @@ free" line was read from (see worked example below, byte-exact match).
 `KEY {row, col, state}` down events replace/hold a slot until the matching up
 arrives (`droidputter.cpp: onFrame`, a 16-slot held-key table).
 
+### Cardputer 4x14 physical key layout
+
+Row 0 = top, col 0 = leftmost. `(row,col)` below; legend is the primary
+(unshifted) keycap.
+
+| row | col0 | col1 | col2 | col3 | col4 | col5 | col6 | col7 | col8 | col9 | col10 | col11 | col12 | col13 |
+|-----|------|------|------|------|------|------|------|------|------|------|-------|-------|-------|-------|
+| 0 | esc | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 | _ | = | del |
+| 1 | tab | q | w | e | r | t | y | u | i | o | p | [ | ] | \ |
+| 2 | fn | shift | a | s | d | f | g | h | j | k | l | ; | ' | enter |
+| 3 | ctrl | opt | alt | z | x | c | v | b | n | m | , | . | / | space |
+
+Example: `1` = (0,1) confirmed [REAL] against Pense-Bem (starts Adição);
+`enter` = (2,13) confirmed [REAL] (answers a question); see S3 in
+`progress.txt` and `fixtures/pense-bem/keys.bin`.
+
 ## Bandwidth budget
 
 A full 240x135 RGB565 frame is 64,800 B. The ESP32-S3's USB-Serial/JTAG is

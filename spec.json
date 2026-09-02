@@ -80,7 +80,7 @@
       "Hardware: `python3 tools/dp_receiver.py --key 0,1` (the `1` key) must start Adição in Pense-Bem (mode line on the TFT and on the Mac PNG); `--key 2,13` (enter) answers. Record the key-to-screen latency measured by the receiver (KEY sent -> first RECT/FILL received) in progress.txt, label [REAL].",
       "Verify: progress.txt has the S3 [REAL] line with a latency number in ms, and fixtures/pense-bem/keys.bin exists."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "spike",
