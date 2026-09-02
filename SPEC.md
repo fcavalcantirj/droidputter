@@ -4,6 +4,32 @@
 > M5Stack's product name — the public name should be device-neutral, since the concept generalizes
 > to any Bruce-capable ESP32.
 
+## North Star (Felipe's product statement, 2026-09-02)
+
+> *"I want to plug an ESP on my Android, install an app, and the Cardputer + ESP32 ecosystem to
+> work on my Android."*
+
+The whole product in one sentence. Decoded into the user story we build toward:
+
+1. **Plug** the ESP32 into the Android phone (**USB-OTG** — the right call: wired control leaves both
+   radios free for the apps and carries GPS on the same cable).
+2. **Install one app** (the universal Androputer client).
+3. **The ecosystem just works** — the M5-Launcher catalog and any M5Burner/Cardputer app render on
+   the phone, driven by the phone keyboard, GPS fed from the phone.
+
+**What it takes — two pieces, stated honestly:**
+- **A) The Android app** — a USB-serial client that renders the streamed screen, maps a soft
+  Cardputer keyboard (+ hardware passthrough), and feeds phone GPS as NMEA. *Proven plumbing.*
+- **B) A shim-enabled firmware/launcher** — a display+input driver layer (over **M5GFX / LovyanGFX**)
+  so **every** app launched through it streams to the phone transparently. This is the crux that
+  turns "one Bruce screen" into "the whole ecosystem." **Flashed once.**
+
+**The unification that makes it feel like magic:** the *same* Android app flashes the shim-launcher
+onto the ESP over USB on first plug-in (reusing **esp-atlas First-Flash / flash-from-phone**). After
+that one-time step: **plug → open app → the entire catalog is on your phone. No PC ever involved.**
+
+---
+
 ## One-liner
 
 Turn an **Android phone into the screen, keyboard, and sensor-pack for an ESP32 pocket computer**
