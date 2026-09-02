@@ -10,6 +10,9 @@ static bool started = false, linked = false;
 static uint32_t st_frames, st_bytes, st_dropped, last_stats, last_hello;
 static char app_name[32] = "app"; static uint16_t scr_w = 240, scr_h = 135; static uint8_t scr_rot = 1;
 static uint8_t crc8(uint8_t c, const uint8_t* p, size_t n) { while (n--) { c ^= *p++; for (int i = 0; i < 8; i++) c = (c & 0x80) ? (c << 1) ^ 0x07 : (c << 1); } return c; }
+#ifndef DROIDPUTTER_TXBUF
+#define DROIDPUTTER_TXBUF 32768
+#endif
 static uint32_t write_budget_ms = 40;
 static bool usb_write(const uint8_t* p, size_t n) {
   uint32_t t0 = millis();
@@ -37,7 +40,7 @@ static void sendHello() {
 }
 void begin(const char* app, uint16_t w, uint16_t h, uint8_t rot) {
   if (started) return; started = true; if (app) strncpy(app_name, app, 31); scr_w = w; scr_h = h; scr_rot = rot;
-  Serial.setTxBufferSize(32768); Serial.setTxTimeoutMs(20); sendHello();
+  Serial.setTxBufferSize(DROIDPUTTER_TXBUF); Serial.setTxTimeoutMs(20); sendHello();
 }
 static void flushRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t* px) {
   uint8_t hd[8]; put16(hd, x); put16(hd + 2, y); put16(hd + 4, w); put16(hd + 6, h);

@@ -164,6 +164,16 @@ This is the exact KEY pair S3 used to start "Adição" in Pense-Bem
 | framing errors on host | 1 (boot text / partial first frame) |
 | render fidelity | `fixtures/pense-bem/screen-after-keys.png` = the TFT content, colors correct (panel byte order = big-endian 565 confirmed) |
 
-**S5 raw ceiling [REAL]:** 30 uncompressed full frames (RECT 64,808 B, RLE-defeating pattern, `-DDROIDPUTTER_BENCH=1`) in 2,103 ms → **13.8 fps, 873 KB/s** sustained over HWCDC with a 32 KB TX ring. Worst case for any app; partial redraws and RLE scale from there.
+**S5 raw ceiling [REAL]:** 30 uncompressed full frames (RECT 64,808 B, RLE-defeating pattern, `-DDROIDPUTTER_BENCH=1`) in 2,103 ms → **13.8 fps, 873 KB/s** sustained over HWCDC with a 32 KB TX ring (original spike measurement). Worst case for any app; partial redraws and RLE scale from there.
+
+**S5 TX-buffer sweep [REAL], 2026-09-02, Cardputer ADV, `apps/pense-bem` `env:m5cardputer-bench-{8192,32768,65536}` (`-DDROIDPUTTER_TXBUF=N`), measured by parsing the 30 full-screen (0,0,240,135) RECT/RECT_RLE frames' arrival timestamps:**
+
+| `Serial.setTxBufferSize` | fps | KB/s | wire bytes (30 frames) |
+|---|---|---|---|
+| 8,192 B | 11.0 | 721 | 1,944,420 |
+| 32,768 B | 14.2 | 874 | 1,834,716 |
+| 65,536 B | 14.7 | 880 | 1,779,864 |
+
+Throughput climbs steeply from 8 KB to 32 KB (11.0 -> 14.2 fps) then flattens from 32 KB to 64 KB (14.2 -> 14.7 fps, +3%) — the ceiling is the USB full-speed link (12 Mbit/s = 1.5 MB/s theoretical), not the software ring, once the ring is >= 32 KB. **Decision: RECT_RLE is not required for full-frame apps** — even the smallest ring tested (8 KB) clears the 8 fps bar from the bandwidth-budget section above. RECT_RLE stays in the protocol because it makes partial/dirty-rect redraws (the common case, per S2/S3) far cheaper, not because raw full frames need it. **Default TX buffer the shim ships with: 32,768 B** (`droidputter.cpp`'s `DROIDPUTTER_TXBUF` default) — it captures nearly all of the 64 KB ring's throughput at half the RAM.
 
 **S4 flash-from-phone [REAL]:** Poco X7 Pro (Android 16) + ESP32_Flasher over USB-C OTG flashed the same 4 parts (auto-bootloader, stub, 504 KB firmware in 19.4 s). The phone enumerates the Cardputer as `0x303A:0x1001` "USB JTAG/serial debug unit", port `dfp`/source/host. No PC involved.

@@ -102,7 +102,7 @@
       "Decision recorded in docs/PROTOCOL.md: whether RECT_RLE is required for full-frame apps (if fps < 8 at 32 KB buffer) and the default TX buffer size the shim ships with.",
       "Verify: docs/PROTOCOL.md contains a 'Measured' table with at least three buffer sizes and fps numbers labelled [REAL]."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",
