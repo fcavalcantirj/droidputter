@@ -248,7 +248,7 @@
       "Tests: 56 entries, no duplicates, `1` is (0,1), enter is (2,13), space is (3,13); encodeKey output byte-exact with PROTOCOL.md.",
       "Verify: `./gradlew :core:test` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "core",
