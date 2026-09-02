@@ -9,10 +9,20 @@
 namespace dp { namespace internal {
 
 extern bool started;
+// Link is up only once a HELLO_ACK has been received; while down, dp_display.cpp's
+// tee functions no-op before doing any buffering/RLE/USB work (droidputter.cpp
+// still answers HELLO/PING so a phone can discover and ack the link).
+extern bool linked;
 extern uint16_t scr_w, scr_h;
 extern uint8_t scr_rot;
 extern uint32_t st_frames, st_bytes, st_dropped;
 extern uint32_t write_budget_ms;  // usb_write()'s blocking budget; raised only by the bench path
+
+// Full-frame resync: reads the panel's current pixels back (readRect -- real SPI
+// RAMRD on Panel_LCD/ST7789, an in-RAM copy on the virtual Panel_Droidputter) and
+// pushes them as one RECT/RECT_RLE, so a phone that HELLO_ACKs after the app has
+// already drawn its screen still sees it. Called from droidputter.cpp on HELLO_ACK.
+void resync();
 
 uint8_t crc8(uint8_t c, const uint8_t* p, size_t n);
 void put16(uint8_t* p, uint16_t v);

@@ -8,6 +8,7 @@
 namespace dp {
 namespace internal {
 bool started = false;
+bool linked = false;
 uint16_t scr_w = 240, scr_h = 135;
 uint8_t scr_rot = 1;
 uint32_t st_frames, st_bytes, st_dropped;
@@ -62,13 +63,15 @@ static void onFrame(uint8_t type, const uint8_t* p, uint16_t n) {
   if (type == KEY && n >= 3) { uint8_t r = p[0], c = p[1], s = p[2]; int i = 0; for (; i < nheld; i++) if (held_r[i] == r && held_c[i] == c) break;
     if (s) { if (i == nheld && nheld < 16) { held_r[nheld] = r; held_c[nheld] = c; nheld++; } }
     else if (i < nheld) { for (int j = i; j + 1 < nheld; j++) { held_r[j] = held_r[j+1]; held_c[j] = held_c[j+1]; } nheld--; } }
-  else if (type == HELLO_ACK) { sendHello();
+  else if (type == HELLO_ACK) { internal::linked = true; sendHello(); internal::resync();
 #ifdef DROIDPUTTER_BENCH
     extern void dp_display_bench(int frames);
     dp_display_bench(30);
 #endif
   }
-  else if (type == PING_IN) { send(PING, nullptr, 0); }
+  // PING_IN also resends HELLO (not just PONG): a phone that connects late and
+  // only knows to probe (not yet ack its screen size) still learns the geometry.
+  else if (type == PING_IN) { send(PING, nullptr, 0); sendHello(); }
 }
 void poll() {
   if (!internal::started) return;

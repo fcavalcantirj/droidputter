@@ -155,7 +155,7 @@
       "Full-frame resync: on HELLO_ACK the shim requests a repaint by emitting one RECT of the panel's current contents if the panel supports readPixels (ST7789 on the Cardputer: use `readRect`), else emits FILL black and relies on the app's next redraw. Record which path the Cardputer takes.",
       "Verify: with the receiver started AFTER the ESP booted, the Mac shows the current screen within 2 s (a [REAL] line in progress.txt), and `pio test -e native` still passes."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",

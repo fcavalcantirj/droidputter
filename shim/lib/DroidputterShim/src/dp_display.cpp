@@ -5,6 +5,7 @@
 #include "dp_rle.h"
 #ifdef ARDUINO
 #include <Arduino.h>
+#include <M5Unified.h>
 #include <lgfx/v1/misc/pixelcopy.hpp>
 #include <string.h>
 namespace dp {
@@ -38,26 +39,57 @@ static void flushPending() {
   if (rem) flushRect(win_x, win_y + rows, rem, 1, winbuf + rows * win_w * 2);
   cursor = 0;
 }
+// Every entry point below no-ops while the link is down (before HELLO_ACK) so an
+// app on the ESP alone runs at full speed with zero buffering/RLE/USB overhead --
+// only window()'s lazy begin() call (unconditional, needed for the very first
+// HELLO) runs regardless of link state.
 void window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye) {
   if (!internal::started) begin(nullptr, internal::scr_w, internal::scr_h, internal::scr_rot);
+  if (!internal::linked) { cursor = 0; winpix = 0; return; }
   flushPending(); win_x = xs; win_y = ys; win_w = xe - xs + 1; win_h = ye - ys + 1; winpix = win_w * win_h; cursor = 0;
   if (winpix * 2 > sizeof winbuf) winpix = sizeof winbuf / 2;
 }
 void bytes(const uint8_t* data, uint32_t nbytes) {
+  if (!internal::linked) return;
   uint32_t np = nbytes / 2; while (np) { uint32_t room = winpix - cursor; uint32_t k = np < room ? np : room; memcpy(winbuf + cursor * 2, data, k * 2); cursor += k; data += k * 2; np -= k; if (cursor >= winpix) { flushRect(win_x, win_y, win_w, win_h, winbuf); cursor = 0; } if (!room) break; }
 }
 void repeat(uint32_t raw, uint32_t npixels) {
+  if (!internal::linked) return;
   uint8_t c0 = raw & 0xFF, c1 = (raw >> 8) & 0xFF;
   while (npixels) { uint32_t room = winpix - cursor; uint32_t k = npixels < room ? npixels : room; uint8_t* p = winbuf + cursor * 2; for (uint32_t i = 0; i < k; i++) { p[i*2] = c0; p[i*2+1] = c1; } cursor += k; npixels -= k; if (cursor >= winpix) { flushRect(win_x, win_y, win_w, win_h, winbuf); cursor = 0; } if (!room) break; }
 }
 void fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t raw) {
+  if (!internal::linked) { cursor = 0; winpix = 0; return; }
   uint8_t p[10]; internal::put16(p, x); internal::put16(p + 2, y); internal::put16(p + 4, w); internal::put16(p + 6, h); p[8] = raw & 0xFF; p[9] = (raw >> 8) & 0xFF; internal::send(FILL, p, 10); cursor = 0; winpix = 0;
 }
 void pixel(uint16_t x, uint16_t y, uint32_t raw) { fill(x, y, 1, 1, raw); }
 void pixelsConv(lgfx::v1::pixelcopy_t* param, uint32_t np) {
+  if (!internal::linked) return;
   lgfx::v1::pixelcopy_t p2 = *param; uint32_t room = winpix - cursor; if (np > room) np = room; if (!np) return;
   p2.fp_copy(winbuf + cursor * 2, 0, np, &p2); cursor += np; if (cursor >= winpix) { flushRect(win_x, win_y, win_w, win_h, winbuf); cursor = 0; }
 }
+namespace internal {
+// Reads the panel back row-by-row (a small 720 B row buffer, not a full-frame
+// RGB888 staging buffer -- RAM on the ESP32-S3 is already tight, see task 13's
+// virtual-panel RAM note) via the public LGFXBase::readRectRGB, which resolves to
+// Panel_LCD's real SPI RAMRD read on the Cardputer ADV and to Panel_FrameBufferBase's
+// in-RAM read on the virtual panel -- both "support readPixels" so the FILL-black
+// fallback described in the task is dead code for every panel this shim ships.
+void resync() {
+  uint16_t w = scr_w > MAXW ? MAXW : scr_w, h = scr_h > MAXH ? MAXH : scr_h;
+  static uint8_t row[MAXW * 3];
+  for (uint16_t y = 0; y < h; y++) {
+    M5.Display.readRectRGB(0, y, w, 1, row);
+    uint8_t* dst = winbuf + (uint32_t)y * w * 2;
+    for (uint16_t x = 0; x < w; x++) {
+      uint16_t v = (uint16_t)((row[x * 3] & 0xF8) << 8 | (row[x * 3 + 1] & 0xFC) << 3 | row[x * 3 + 2] >> 3);
+      dst[x * 2] = v >> 8; dst[x * 2 + 1] = v & 0xFF;
+    }
+  }
+  flushRect(0, 0, w, h, winbuf);
+  cursor = 0; winpix = 0;
+}
+}  // namespace internal
 #ifdef DROIDPUTTER_BENCH
 // Raw full-frame throughput probe (S5): bypasses the governor and RLE on purpose --
 // it measures how fast the HWCDC ring drains under sustained backpressure, so it
