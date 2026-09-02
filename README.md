@@ -1,4 +1,6 @@
-# Androputer
+# DROIDPUTTER
+
+> **"Cardputer my Android."**
 
 **Turn your Android phone into the screen, keyboard, and sensors for an ESP32 pocket computer.**
 Flagship target: the M5Stack **Cardputer / Cardputer ADV**. One line: *the Flipper Zero mobile app,

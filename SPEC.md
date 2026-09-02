@@ -1,8 +1,9 @@
-# Androputer — Project Spec
+# DROIDPUTTER — Project Spec
 
-> **Working title:** *Androputer* (candidates: PocketDeck, CardCast, Deckhand). "Cardputer" is
-> M5Stack's product name — the public name should be device-neutral, since the concept generalizes
-> to any Bruce-capable ESP32.
+> **Name:** **DROIDPUTTER** — the verb form of Felipe's original idea: **"Cardputer my Android."**
+> (Working title; earlier candidates: Androputer, PocketDeck, CardCast, Deckhand.) The concept
+> generalizes to any Bruce-capable ESP32, not just M5Stack's Cardputer — "Cardputer" is M5Stack's
+> product name, so the public name stays device-neutral.
 
 ## North Star (Felipe's product statement, 2026-09-02)
 
@@ -36,6 +37,49 @@ Turn an **Android phone into the screen, keyboard, and sensor-pack for an ESP32 
 (flagship: M5Stack **Cardputer / Cardputer ADV**). Connect the ESP32 (USB / WiFi / BLE); the phone
 becomes its display and input — and *feeds it what it lacks* (GPS, internet, time). In one line:
 **"the Flipper Zero mobile app, but for the Cardputer."**
+
+## What it is — and what it is NOT (read this first)
+
+**Not an emulator.** An emulator runs the ESP firmware on the phone's CPU with *no ESP present*.
+This is the opposite: the real ESP32 runs the real firmware and the phone adds **zero computation**
+— it is pure I/O. The ESP is **always** in the loop.
+
+Accurate category, best-fit first:
+- **Thin client / remote terminal** — the ESP is the "server" running everything; the phone is a
+  dumb display + input front-end.
+- **Wireless KVM** (keyboard-video-mouse) — the phone is a detachable **console** for a
+  headless-ish board.
+- **Companion app** — the loose consumer term (what Flipper calls theirs). Good for the public
+  name, vague for the architecture.
+
+But it is **more than a KVM**: a KVM/VNC only *mirrors*; this also **lends the ESP hardware it
+lacks** — GPS, internet, a big screen, clock. Tightest definition:
+
+> **A wireless KVM + peripheral dock for an ESP32.** The phone is the ESP's **borrowed head**
+> (embedded boards with no display are "headless" — the phone is a detachable head) *and* its
+> sensor pack. The ESP is always the brain.
+
+**Hard requirement:** an ESP must be connected — plugged (USB) *or* wireless (WiFi/BLE). No ESP →
+not a Cardputer, just a phone. Running the phone *as* the computer with no ESP is a different
+project (the "Phoneputer" / Linux-on-phone camp) — an explicit non-goal (see Non-goals).
+
+## Wired mode (USB-OTG) — what works, honestly
+
+The model: *plug an ESP32 (Cardputer ADV specs) into Android over USB-OTG; the ESP runs the apps
+while the phone provides screen + keyboard + peripherals.* Correct — with one caveat on the screen.
+
+| Capability over USB-OTG | Status | Notes |
+|---|---|---|
+| ESP runs the apps (Bruce, M5Launcher catalog) | ✅ real | ESP32-S3 is the brain; the phone changes nothing here. |
+| Power the board from the phone | ✅ real | Phone sources VBUS over OTG (watch weak/contended OTG current). |
+| Keyboard / control → ESP | ✅ real | `usb-serial-for-android` → ESP32-S3 **native USB (CDC-ACM)**, no bridge chip. |
+| GPS → ESP as NMEA | ✅ real | Phone NMEA forwarded on the same cable; Bruce/Marauder read external GPS. |
+| Both ESP radios (WiFi + BLE) free for the app | ✅ real | The whole point of wired control — nothing seizes a radio for the link. |
+| **Screen → phone over USB** | ⚠️ needs firmware assist | Stock Bruce streams its screen over **WiFi** (HTTP draw-command log), not serial. Piping it down USB needs a firmware path that pushes that log over serial, or the **M5GFX shim**. |
+
+So the wired end-state (**M2**) is "screen + keys + GPS on one cable, radios free" — but the *screen*
+leg needs firmware cooperation. **M1** proves the whole idea first over **WiFi with stock,
+unmodified Bruce** (the screen already streams there).
 
 ## Origin (Felipe, 2026-09-02)
 
