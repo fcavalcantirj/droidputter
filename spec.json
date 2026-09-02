@@ -288,7 +288,7 @@
       "`UsbDpTransport`: `UsbSerialProber.getDefaultProber()` plus a custom ProbeTable adding VID 0x303A to `CdcAcmSerialDriver`; open, `setParameters(115200,8,1,NONE)`, `setDTR(true)`, `setRTS(true)`, `SerialInputOutputManager` feeding a Flow; `purgeHwBuffers` on close. Detach -> emits event to the state machine; re-enumeration after ESP reset must reconnect without user action beyond the OS permission dialog.",
       "Verify: `./gradlew :app:assembleDebug` exits 0; static gate passes. Hardware: with the Poco on WIRELESS adb (`adb pair`/`adb connect`), install the APK (`adb install -r`), plug the Cardputer ADV running the S2 shim build: logcat shows `HELLO` decoded within 2 s of granting permission. UAT line if no phone."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "app",

@@ -103,8 +103,12 @@ class UsbLinkManager(
         }
 
     private fun requestPermission(device: UsbDevice) {
+        // Android 14+ (targetSdk 34+) rejects FLAG_MUTABLE on an implicit intent; making the
+        // intent explicit (setPackage) is what allows the system to still fill in
+        // EXTRA_PERMISSION_GRANTED/EXTRA_DEVICE when it delivers the permission result.
+        val intent = Intent(ACTION_USB_PERMISSION).setPackage(context.packageName)
         val flags = PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        val pendingIntent = PendingIntent.getBroadcast(context, 0, Intent(ACTION_USB_PERMISSION), flags)
+        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags)
         usbManager.requestPermission(device, pendingIntent)
     }
 
