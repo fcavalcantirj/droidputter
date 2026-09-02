@@ -228,7 +228,7 @@
       "Tests: one per type from the PROTOCOL.md examples, plus the fixture replay: every frame in fixtures/pense-bem/boot.bin decodes; count of each type is asserted against numbers written in fixtures/README.md.",
       "Verify: `./gradlew :core:test` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "core",
