@@ -22,7 +22,7 @@
       "Verify: `rm -rf apps/pense-bem/lib/M5GFX apps/pense-bem/lib/M5Cardputer && shim/apply.sh apps/pense-bem /Users/fcavalcanti/dev/m5/cardputter-pense-pem/.pio/libdeps/m5cardputer` exits 0 and prints 'patched libs ready'; then `cd apps/pense-bem && pio run -e m5cardputer` exits 0.",
       "Write shim/README.md: what the patches hook, why (SPEC finding B: rebuild against a patched display lib = transparent mirror for any open-source app), the overlay recipe (`[platformio] src_dir` pointing at the app, `lib_extra_dirs = ../../shim/lib`, `lib_deps = m5stack/M5Unified@0.2.20` + `symlink://../../shim/lib/DroidputterShim`, `-I ../../shim/lib/DroidputterShim/src`, `-DDROIDPUTTER=1`), and the version pins (M5Unified 0.2.21+ needs M5GFX 0.2.28 -> stay on 0.2.20 until the patch is rebased)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "setup",
