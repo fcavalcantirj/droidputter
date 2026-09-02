@@ -13,17 +13,21 @@ static uint8_t winbuf[MAXW * MAXH * 2];      // pixel bytes, big-endian wire ord
 static uint32_t win_x, win_y, win_w, win_h, cursor /*pixels*/, winpix;
 
 // Governor: an outgoing RECT/RECT_RLE needs at most 6 (frame overhead) + 8 (rect
-// header) + n*2 (raw pixels) bytes. If the HWCDC ring doesn't have that much free
-// right now, drop and count the whole rect instead of blocking the app in usb_write's
-// wait loop -- a slow/detached phone must never slow the panel down.
+// header) + payload bytes, where payload is the RLE size when RLE helps, else the
+// raw n*2 pixel bytes -- checked AFTER the RLE attempt so a rect that is small once
+// compressed (e.g. a full-screen fill) is not dropped on its uncompressed size alone.
+// If the HWCDC ring doesn't have that much free right now, drop and count the whole
+// rect instead of blocking the app in usb_write's wait loop -- a slow/detached phone
+// must never slow the panel down.
 static void flushRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t* px) {
   uint32_t n = w * h, raw = n * 2;
-  if (!internal::hasSpace(6 + 8 + raw)) { internal::st_dropped++; return; }
-  uint8_t hd[8]; internal::put16(hd, x); internal::put16(hd + 2, y); internal::put16(hd + 4, w); internal::put16(hd + 6, h);
   static uint16_t pxval[MAXW * MAXH];
   for (uint32_t i = 0; i < n; i++) pxval[i] = (uint16_t)(px[i * 2] << 8 | px[i * 2 + 1]);
   static uint8_t stage[32768];
   size_t rleLen = dp_rle_encode(pxval, n, stage, sizeof stage);
+  size_t payload = rleLen ? rleLen : raw;
+  if (!internal::hasSpace(6 + 8 + payload)) { internal::st_dropped++; return; }
+  uint8_t hd[8]; internal::put16(hd, x); internal::put16(hd + 2, y); internal::put16(hd + 4, w); internal::put16(hd + 6, h);
   if (rleLen) internal::send(RECT_RLE, hd, 8, stage, rleLen);
   else internal::send(RECT, hd, 8, px, raw);
 }
