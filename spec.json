@@ -258,7 +258,7 @@
       "Tests: checksum correctness against two known-good sentences, southern/western hemisphere signs, a 0-satellite fix produces GGA quality 0, `$GNGGA` -> `$GPGGA`.",
       "Verify: `./gradlew :core:test` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "core",
