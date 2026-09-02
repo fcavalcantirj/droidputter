@@ -136,7 +136,7 @@ this is where the project's lasting value is.
 |---|---|---|---|
 | **USB-OTG serial** | `usb-serial-for-android` | reliable, powers the ESP, high bandwidth for color frames | tethered |
 | **WiFi** (ESP AP, or ESP joins phone hotspot / STA) | Bruce WebUI path | wireless, full-frame bandwidth, phone keeps cellular | needs the ESP powered separately |
-| **BLE** | GATT | input + low-rate telemetry (GPS, buttons) | **color screen streaming is tight** — Flipper streams mono 128×64; color 240×135 ≈ 8× the data |
+| **BLE** | GATT | input + low-rate telemetry (GPS, buttons) | **color screen streaming is out** — Flipper streams mono 128×64 (1 KB/frame); color 240×135 RGB565 ≈ **63 KiB/frame (~16×/pixel, ~63×/frame)** — see Research finding C |
 
 **Design rule:** color-screen *mirroring* → WiFi or USB. BLE → input + Tier-2 sensor feeds.
 
@@ -150,16 +150,122 @@ sensor feed. So "does X work" = "can the ESP's app be **shown, driven, and fed**
 | **WiFi apps** (scan, deauth, evil-portal) | ✅ clean | WiFi radio is on the ESP; the app runs there. Phone shows + types. Caveat: don't run the *control link* over WiFi if the app seizes the radio — control over USB/BLE then. |
 | **BLE apps** | ✅ (BLE only) | BLE radio on the ESP. ESP32-S3 has **no classic Bluetooth** — a Cardputer hardware limit, not ours. Same control-transport caveat. |
 | **GPS** | ⚠️ conditional | Phone streams its GPS as **NMEA** into the ESP; works for firmware that reads external GPS (**Bruce, Marauder do**). An app that hardcodes an onboard module won't. |
-| **Arbitrary M5Burner apps** | ⚠️ the hard one | The phone mirrors **pixels**, but a random app doesn't broadcast its screen — only **Bruce (WebUI)** does today. Making *any* app mirror needs a **display-driver shim** (hook M5GFX/LovyanGFX so every app's draws + key-reads tunnel out). Doable *because* most Cardputer apps share that lib — but it's real work, not free. |
+| **Arbitrary M5Burner apps** (unmodified binaries) | ❌ not possible | ESP32 static-linking forecloses hooking a shipped binary — see Research finding **B**. Only **Bruce (WebUI)** broadcasts its screen today. |
+| **Any OPEN-SOURCE app, recompiled** | ⚠️ real, but a rebuild | A patched-M5GFX display+input shim mirrors *any* app you rebuild against it — app source unchanged. Real work, not free, and not for M5Burner binaries. See finding **B**. |
 
 **Architecture consequence — prefer USB-OTG for the control link.** Wired control leaves **both
 radios (WiFi + BLE) 100% free** for the app, carries GPS NMEA on the same cable, and gives the best
 latency. Mirror-over-WiFi only suits apps that don't seize the WiFi radio (one 2.4 GHz radio —
 can't sniff/hop channels *and* hold a control link at once).
 
-**The crux to prototype:** the **M5GFX / LovyanGFX display + input shim**. If it works, the *entire*
-Cardputer app catalog renders on the phone transparently — that's the genius move. Everything else
-(Bruce-first mirror, GPS feed) is proven plumbing around it. Until then, "any app" ≠ automatic.
+**The crux to prototype:** the **M5GFX / LovyanGFX display + input shim** — but see Research finding
+**B**: it makes every **open-source app you recompile** mirror transparently, **not** arbitrary
+M5Burner binaries (ESP32 static-linking forecloses that). Everything else (Bruce-first mirror, GPS
+feed) is proven plumbing. Until the shim, "any app" ≠ automatic; after it, "any *rebuilt* app" is.
+
+---
+
+## Research findings — verified from source (2026-09-02)
+
+Four parallel digs read the **actual source** (not blog summaries) for every piece this project
+leans on. Facts are labeled and cited. **Where this section conflicts with looser claims elsewhere
+in the spec, this section wins.**
+
+### A. Bruce WebUI protocol — the M1 contract  [VERIFIED from source]
+
+Bruce's screen mirror ("Navigator") is **not** a framebuffer / JPEG / MJPEG stream. It is a
+**serialized TFT draw-command log** ("bin log") over **plain HTTP GET polling**, replayed onto an
+HTML canvas by a JS interpreter (`renderTFT`). This is *better* than pixels — vector ops are tiny
+and give crisp text — so **M1's real work is reimplementing that interpreter, not decoding an image.**
+
+- **Screen:** `GET /getscreen` → `application/octet-stream`; body = draw-command records. Each
+  record: `0xAA` sync byte, `int8 size`, `int8 fn` (command), then params. Integers **big-endian
+  int16**; colors **RGB565**; strings fixed-length byte slices. Commands seen: 0 FILLSCREEN, 1–4
+  rects, 5–6 circles, 7–8 triangles, 11–13 lines/arcs, 14–17 text, 18 DRAWIMAGE (fetches
+  `/file?fs=…`), 99 SCREEN_INFO (device sends its own w/h → **do not hardcode 240×135**).
+- **Input:** `POST /cm`, body param `cmnd` = `nav up|down|prev|next|sel|esc` (+ optional hold-ms,
+  e.g. `nav sel 500`), plus `nextpage`/`prevpage`. Same endpoint runs any Bruce serial command.
+- **Discovery / auth:** mDNS `bruce.local`; AP SSID `BruceNet`/`brucenet`; `POST /login` (default
+  `admin`/`bruce`) → session cookie carried on every request.
+- **Availability:** WebUI is **core** (not per-board), launched from **Files → WebUI** (STA "My
+  Network" or AP Mode). Not auto-started.
+- **OPEN QUESTION (needs live Cardputer):** does `/getscreen` return a **full redraw or a delta**
+  each poll? Decides whether the Android renderer is stateless or must persist the canvas and handle
+  ring-buffer overflow/resync. **Confirm on hardware.**
+- Source: `src/core/wifi/webInterface.cpp`, `embedded_resources/web_interface/index.js` (pr3y/Bruce);
+  https://wiki.bruce.computer/controlling-device/webui/
+
+### B. M5GFX / LovyanGFX shim — the "any app" bet  [VERIFIED verdict]
+
+**Blunt truth: "transparent mirror for ANY M5Burner app" is NOT achievable.** ESP32 is a single
+statically-linked binary — no dynamic linker, no `LD_PRELOAD`, no interposition. Worse,
+`M5GFX::init_impl()` calls `autodetect()` **unconditionally** and overwrites any panel you inject
+before `M5.begin()`. Keyboard is a per-app GPIO matrix scan. You cannot hook an existing binary.
+
+**What IS real: "transparent mirror for any OPEN-SOURCE app you REBUILD against a patched M5GFX."**
+The `_bus` object (LovyanGFX `Panel_LCD` → `IBus`) is a genuine single chokepoint; all write methods
+(`writeBytes`/`writePixels`/`writeData`/`writeDataRepeat`/`writeCommand`) are `virtual`. Subclass it
+to duplicate the pixel/command stream to a network sink; rebuild the app against the patched lib —
+app source unchanged. Input injection rides the same rebuild (override `KeyboardReader`).
+
+**Consequence for the pitch:** it's "free mirroring for the open-source Cardputer ecosystem you can
+recompile," **not** "anything on M5Burner." No prior art does the transparent tap (closest is
+app-cooperative `readPixels()` screen-servers).
+- Source: lovyan03/LovyanGFX `Panel_LCD.cpp`, `Bus_SPI.hpp`, `Panel_Device.hpp`; m5stack/M5GFX
+  `M5GFX.cpp`; m5stack/M5Cardputer `IOMatrix.cpp`.
+
+### C. Flipper protobuf RPC — protocol to borrow for Tier 3  [VERIFIED from source]
+
+**Borrow wholesale:** varint-length-delimited **`PB.Main` envelope** (`command_id` +
+`command_status` + `has_next`), the **`InputKey`/`InputType` enums** (UP/DOWN/LEFT/RIGHT/OK/BACK ×
+PRESS/RELEASE/SHORT/LONG/REPEAT), the start/stop stream request pair, and the virtual-display request
+shape. The same byte stream runs over USB-CDC **and** BLE.
+**Don't borrow:** the raw 1bpp full-framebuffer push. Flipper is 128×64 mono = **1024 B/frame**; ours
+is 240×135 **RGB565 = ~63 KiB/frame** — that's **~16× per pixel / ~63× per full frame** (the spec's
+earlier "8×" was an understatement). Color mirroring **mandates WiFi/USB + dirty-rect deltas**; BLE
+stays fine for input + the semantic-UI control channel. Extend `InputKey` with a keycode/text field
+for the Cardputer's full QWERTY; add a region `(x,y,w,h)` to the frame message.
+- Source: flipperdevices/flipperzero-protobuf `gui.proto`/`gui.options`/`flipper.proto`;
+  flipperzero-firmware `rpc_gui.c`/`rpc.c`.
+
+### D. Hardware / USB-OTG / GPS  [VERIFIED]
+
+- **USB driver path is clean:** both **Cardputer and StickC-S3 use ESP32-S3 native USB (CDC-ACM, VID
+  `0x303A`)** — no bridge chip. `mik3y/usb-serial-for-android` (v3.5.0+ binds CDC-ACM by interface
+  class), no CH9102/CP210x driver needed. **Risk:** native USB **re-enumerates** on firmware USB
+  re-init, and phones deliver weak/contended OTG VBUS → intermittent disconnects; the app must treat
+  serial as unreliable and **auto-reconnect**.
+- **Board targets:** **Cardputer IS officially Bruce-supported** (240×135 ST7789V2, full 56-key
+  QWERTY). **StickC-S3 is NOT officially supported by Bruce** (open issue #2148, hardware-rev) and has
+  only ~2 buttons → menu-heavy Bruce flows are painful. **→ Cardputer = safe primary M1 target; spare
+  StickC-S3 = at-risk secondary.** (`sticks3-ptt`, the Casa Viva catheter stick, is **off-limits**.)
+  Both panels mirror as one **240×135 landscape** frame.
+- **GPS:** forward Android raw NMEA (`addNmeaListener`) at **9600 baud, 1 Hz, GGA+RMC** down the same
+  serial link; Bruce/Marauder parse external NMEA (TinyGPS++). Two gotchas: the callback goes
+  **silent** when Android serves fused/network location (force `GPS_PROVIDER`, or **synthesize**
+  GGA/RMC from `Location`), and normalize **`$GN` vs `$GP`** talker IDs before forwarding.
+
+### My engineering read (considerations)
+
+- **M1 is honest and de-risked.** Stock Bruce over WiFi already streams (draw-command log) and takes
+  nav input — zero firmware change. The build is: an Android **draw-command renderer** + soft 4×14
+  keyboard + login/mDNS. Real risks are **latency** and the **full-vs-delta** unknown (A) — both
+  measurable on your Cardputer, today.
+- **The "any app" dream is scoped to reality.** Promote the **open-source-recompile shim** as the
+  honest Tier-3 lever; **drop "any M5Burner binary"** from the pitch — it's foreclosed by silicon.
+- **Transport split is settled.** Color pixels → WiFi/USB with dirty-rect deltas; input + semantic
+  control → fine on BLE. USB-OTG stays the preferred end-state (both radios free, GPS on the cable),
+  with the screen-over-USB firmware-assist caveat.
+- **Sequence:** M1 (WiFi Bruce mirror on the Cardputer) → measure latency → *then* choose firmware-
+  assist (push the draw-log over serial) vs. the shim spike for the wired / any-rebuilt-app tiers.
+
+### Sources read (beyond the prior-art list in README)
+
+- Bruce firmware: https://github.com/pr3y/Bruce  ·  WebUI: https://wiki.bruce.computer/controlling-device/webui/  ·  StickC-S3 support issue #2148: https://github.com/BruceDevices/firmware/issues/2148
+- Flipper protobuf: https://github.com/flipperdevices/flipperzero-protobuf  ·  firmware RPC: https://github.com/flipperdevices/flipperzero-firmware/tree/dev/applications/services/rpc
+- LovyanGFX: https://github.com/lovyan03/LovyanGFX  ·  M5GFX: https://github.com/m5stack/M5GFX  ·  M5Cardputer: https://github.com/m5stack/M5Cardputer
+- Android USB serial: https://github.com/mik3y/usb-serial-for-android  ·  NMEA listener: https://developer.android.com/reference/android/location/OnNmeaMessageListener
+- Boards: https://docs.m5stack.com/en/core/Cardputer%20V1.1  ·  https://docs.m5stack.com/en/core/StickS3
 
 ## MVP definition (Tier 1, Bruce-first)
 
