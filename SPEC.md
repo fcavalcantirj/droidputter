@@ -245,6 +245,27 @@ for the Cardputer's full QWERTY; add a region `(x,y,w,h)` to the frame message.
   **silent** when Android serves fused/network location (force `GPS_PROVIDER`, or **synthesize**
   GGA/RMC from `Location`), and normalize **`$GN` vs `$GP`** talker IDs before forwarding.
 
+### E. bmorcelli's "Launcher" — support verdict  [VERIFIED from source]
+
+**The Launcher has no screen-mirror of its own.** It's a resident **boot menu that flashes-and-boots
+separate firmware `.bin` images** (into OTA partitions), *not* an in-process runtime. Its web server
+(`src/webInterface.cpp`) is a **firmware/file manager** — the full route table is OTA upload, file /
+NVS / partition ops, `/systeminfo`, `/reboot`, `/bootapp`, login — with **no `/getscreen` and no
+`/cm` / nav input endpoint**. bmorcelli (Pirata) is a **Bruce contributor**; Bruce is one of the apps
+you boot from the Launcher (Bruce ships `LITE_VERSION` "Launcher-compatible" builds for small-flash
+boards).
+
+**Consequences:**
+- **Mirror the Launcher's own menu, or arbitrary catalog apps → recompile shim only** (finding B).
+  The Launcher adds *zero* mirroring passthrough; each app's mirrorability is its own firmware's
+  business.
+- **Bruce launched *via* the Launcher still works** — once booted, Bruce *is* the running firmware
+  and its WebUI streams exactly as if flashed directly. So **"Bruce anywhere" = M1**; the Launcher
+  menu + non-Bruce apps = **shim tier**. (To-verify on hardware: that the small-board `LITE_VERSION`
+  Bruce still ships the WebUI.)
+- Source: bmorcelli/Launcher `src/webInterface.cpp`, `webUi/scripts.js`, wiki "Explaining the
+  project"; Bruce LITE-build feature matrix.
+
 ### My engineering read (considerations)
 
 - **M1 is honest and de-risked.** Stock Bruce over WiFi already streams (draw-command log) and takes
@@ -258,6 +279,9 @@ for the Cardputer's full QWERTY; add a region `(x,y,w,h)` to the frame message.
   with the screen-over-USB firmware-assist caveat.
 - **Sequence:** M1 (WiFi Bruce mirror on the Cardputer) → measure latency → *then* choose firmware-
   assist (push the draw-log over serial) vs. the shim spike for the wired / any-rebuilt-app tiers.
+- **Launcher = shim-tier, not M1.** "Run the Launcher catalog on the phone" needs the recompile shim
+  (finding E — the Launcher exposes no mirror). Ship Bruce-mirror (M1) first; fold Launcher-menu
+  mirroring into the shim milestone. "Bruce, however you booted it" is the M1-reachable slice.
 
 ### Sources read (beyond the prior-art list in README)
 

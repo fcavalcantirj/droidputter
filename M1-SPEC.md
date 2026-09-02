@@ -116,12 +116,36 @@ the Cardputer + WiFi — no app yet.
   key-to-screen latency**. Reconnect-after-drop.
 - Emulator is **not** needed for the decoder; render/latency need the Cardputer (in hand).
 
-## Proposed tech (confirm)
+## Architecture — DECIDED (2026-09-02)
 
-- **Native Android, Kotlin**, min-SDK 24. Transport + decoder as a **pure Kotlin module** (KMP-ready).
-  HTTP: OkHttp. Rendering: Android `Canvas`/`Bitmap`. mDNS: Android NSD.
-- Rationale: Android is the first target; a platform-neutral core avoids a rewrite for iOS later.
-  *(Flag: this is the one genuine tech-stack decision — say the word or override.)*
+**Native Android, Kotlin.** Most-native where it matters, no premature machinery. The app is I/O
+against a device, so the platform-native path is the *correct* one, not just the default.
+
+**Strict layering (smart core / dumb shell):**
+- **`core/` — pure Kotlin, ZERO Android imports (KMP-ready):** protocol types, the draw-command
+  **decoder** (`bytes → List<DrawOp>`), the transport/HTTP interface, and the connection state
+  machine. This is the only "smart" layer, and it's **JVM-unit-testable** → the 80%+ coverage target
+  lives here, run against S0's captured frames with no device or emulator.
+- **`app/` — Android, thin:** `Canvas`/`Bitmap` renderer that applies `DrawOp`s, soft-keyboard →
+  `/cm` mapper, NSD discovery, foreground UI. **No protocol logic** — it renders ops and forwards
+  keys, nothing more.
+
+**Stack:**
+- Language **Kotlin**, min-SDK **24**.
+- HTTP/poll: **OkHttp**, hidden behind a `core` interface so it's mockable in tests and swappable
+  for the USB transport in M2.
+- Rendering: Android **`Canvas`/`Bitmap`** — the Bruce stream is light vector ops; no
+  `SurfaceView`/NDK needed.
+- Discovery: Android **NSD** (`bruce.local`) + AP fallback + manual IP.
+
+**Rejected, with reasons:**
+- **Flutter / React Native** — every hardware touchpoint (USB-OTG host in M2, mDNS, the tight poll
+  loop) would cross a plugin bridge that adds latency + friction exactly where it hurts. Native wins
+  on merit.
+- **NDK / C++** — gold-plating for M1: latency is **network-bound**, not CPU (tiny vector commands,
+  not 63 KB framebuffers). Revisit only if the color-framebuffer/shim tier ever proves CPU-bound.
+- **KMP tooling now** — unnecessary: `core/` is already pure Kotlin, so it *lifts* to KMP when iOS
+  is real. Don't pay the multiplatform build cost before then.
 
 ## Build sequence
 
