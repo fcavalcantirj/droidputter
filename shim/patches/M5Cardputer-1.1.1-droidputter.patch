@@ -1,0 +1,131 @@
+diff --color -ruN a/M5Cardputer/src/utility/Keyboard/Keyboard.cpp M5Cardputer/src/utility/Keyboard/Keyboard.cpp
+--- a/M5Cardputer/src/utility/Keyboard/Keyboard.cpp	2026-08-24 21:26:49
++++ b/M5Cardputer/src/utility/Keyboard/Keyboard.cpp	2026-09-02 12:24:53
+@@ -51,10 +51,20 @@
+     return ret;
+ }
+ 
++#include <droidputter.h>
+ void Keyboard_Class::updateKeyList()
+ {
+     if (_keyboard_reader) {
+         _keyboard_reader->update();
++    }
++    dp::poll();
++    if (_keyboard_reader) {
++        uint8_t r[16], c[16]; uint8_t n = dp::injectedKeys(r, c, 16);
++        auto& kl = _keyboard_reader->mutableKeyList();
++        for (uint8_t i = 0; i < n; i++) {
++            bool dup = false; for (auto& k : kl) if (k.x == c[i] && k.y == r[i]) { dup = true; break; }
++            if (!dup) { Point2D_t p; p.x = c[i]; p.y = r[i]; kl.push_back(p); }
++        }
+     }
+ }
+ 
+diff --color -ruN a/M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h
+--- a/M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h	2026-08-24 21:26:49
++++ b/M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h	2026-09-02 12:24:53
+@@ -1,51 +1,52 @@
+-/*
+- * SPDX-FileCopyrightText: 2025 M5Stack Technology CO LTD
+- *
+- * SPDX-License-Identifier: MIT
+- */
+-#pragma once
+-#include <vector>
+-
+-struct Point2D_t {
+-    int x = 0;
+-    int y = 0;
+-
+-    bool operator==(const Point2D_t& other) const
+-    {
+-        return x == other.x && y == other.y;
+-    }
+-};
+-
+-/**
+- * @brief Abstract interface for keyboard reading implementations
+- */
+-class KeyboardReader {
+-public:
+-    virtual ~KeyboardReader() = default;
+-
+-    /**
+-     * @brief Initialize the keyboard reader
+-     */
+-    virtual void begin()
+-    {
+-    }
+-
+-    /**
+-     * @brief Update the keyboard state and key list
+-     */
+-    virtual void update()
+-    {
+-    }
+-
+-    /**
+-     * @brief Get the current key list
+-     * @return Reference to the key list
+-     */
+-    inline const std::vector<Point2D_t>& keyList() const
+-    {
+-        return _key_list;
+-    }
+-
+-protected:
+-    std::vector<Point2D_t> _key_list;
+-};
++/*
++ * SPDX-FileCopyrightText: 2025 M5Stack Technology CO LTD
++ *
++ * SPDX-License-Identifier: MIT
++ */
++#pragma once
++#include <vector>
++
++struct Point2D_t {
++    int x = 0;
++    int y = 0;
++
++    bool operator==(const Point2D_t& other) const
++    {
++        return x == other.x && y == other.y;
++    }
++};
++
++/**
++ * @brief Abstract interface for keyboard reading implementations
++ */
++class KeyboardReader {
++public:
++    virtual ~KeyboardReader() = default;
++
++    /**
++     * @brief Initialize the keyboard reader
++     */
++    virtual void begin()
++    {
++    }
++
++    /**
++     * @brief Update the keyboard state and key list
++     */
++    virtual void update()
++    {
++    }
++
++    /**
++     * @brief Get the current key list
++     * @return Reference to the key list
++     */
++    inline std::vector<Point2D_t>& mutableKeyList() { return _key_list; }
++    inline const std::vector<Point2D_t>& keyList() const
++    {
++        return _key_list;
++    }
++
++protected:
++    std::vector<Point2D_t> _key_list;
++};

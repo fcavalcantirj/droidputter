@@ -1,0 +1,432 @@
+[
+  {
+    "category": "setup",
+    "description": "Record the ground rules in docs/GROUND_RULES.md, create progress.txt and .gitignore",
+    "steps": [
+      "Create .gitignore with at least: `.pio/`, `build/`, `*.bin`, `*.elf`, `*.map`, `android/**/build/`, `android/.gradle/`, `android/local.properties`, `.DS_Store`, `*.apk` (except nothing under fixtures/). Keep any line already present.",
+      "Product statement (verbatim, top of the file): 'Plug an ESP32-S3 into an Android phone over USB-OTG, open one app, and the phone becomes the Cardputer: the ESP runs the app, the phone IS its screen, keyboard, GPS and app launcher. The ESP needs no display or keyboard of its own.' The product ESP is a bare ESP32-S3 (the Cardputer's StampS3 class: ESP32-S3, 8 MB flash). A real Cardputer ADV is used in the spikes ONLY because it is in hand and its own TFT gives ground truth next to the phone. The ESP is always the brain; the phone adds zero computation. Bruce firmware is NOT the target and must not appear as a dependency anywhere in this ledger; it is at most one future catalog entry.",
+      "Mechanism (from SPEC.md finding B, verified): ESP32 binaries are statically linked, so the phone cannot mirror arbitrary M5Burner binaries. What works is a display+keyboard SHIM: a patched copy of M5GFX (LovyanGFX Panel_LCD write path: setWindow / writePixels / writeBlock / writeImage / writeFillRectPreclipped / drawPixelPreclipped) that tees every pixel write to USB-CDC, plus a patched M5Cardputer Keyboard_Class that merges key events received over USB. Any open-source Cardputer app REBUILT against the shim runs on the phone unchanged. Bruce's tft_logger (TFT_eSPI) is prior art for the same pattern.",
+      "Repo layout to be created by later tasks: `shim/` (PlatformIO library DroidputterShim = patched M5GFX + patched M5Cardputer keyboard + USB framing), `tools/` (host-side Python receiver/renderer and capture tools), `fixtures/` (captured real streams, committed), `apps/` (build recipes for rebuilt apps; first one = Pense-Bem at /Users/fcavalcanti/dev/m5/cardputter-pense-pem), `android/` (Gradle project: `core` pure-JVM Kotlin module + `app` Android module), `docs/`.",
+      "Golden rules: Kotlin `android/core` has ZERO `android.*` imports and >=80% line coverage (TDD against fixtures); `android/app` is a dumb shell (render + forward keys, no protocol logic); C++ shim code never allocates per pixel write and never blocks the app longer than the USB TX buffer allows; every code file <= 900 lines; no stubs in production paths; label every hardware result [REAL], test-only [TEST], reasoning [UNVERIFIED].",
+      "Toolchain facts: PlatformIO 6.x with `espressif32@6.12.0` (arduino-esp32 2.0.17), board `m5stack-stamps3`, libs M5Unified ^0.2.20 / M5Cardputer ^1.1.1 / M5GFX 0.2.27 (vendored copy exists at /Users/fcavalcanti/dev/m5/cardputter-pense-pem/.pio/libdeps/m5cardputer/). Android: SDK at ~/Library/Android/sdk (platforms 34/35/36, build-tools 35.0.0 + 36.1.0), JDK = `/Applications/Android Studio.app/Contents/jbr/Contents/Home` (JBR 21), `adb` at /opt/homebrew/bin/adb, AVD `Medium_Phone_API_36.1` (no USB in the emulator: USB tasks need the real Poco X7 Pro over WIRELESS adb because its USB-C is on the ESP).",
+      "Hardware clause used by every hardware task: If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed.",
+      "Write all of the above into docs/GROUND_RULES.md, create progress.txt with the single line `# progress journal`, and verify: `test -s docs/GROUND_RULES.md && test -s progress.txt && git check-ignore -q .pio`."
+    ],
+    "passes": false
+  },
+  {
+    "category": "setup",
+    "description": "Shim patch mechanism: shim/patches/*.patch + shim/apply.sh materialise patched M5GFX 0.2.27 and M5Cardputer 1.1.1 into an app overlay's lib/ (already built and proven; keep it working)",
+    "steps": [
+      "The repo stores DIFFS, not library copies: shim/patches/M5GFX-0.2.27-droidputter.patch (8 hooks in lgfx/v1/panel/Panel_LCD.cpp) and shim/patches/M5Cardputer-1.1.1-droidputter.patch (Keyboard_Class::updateKeyList merge + KeyboardReader::mutableKeyList). apps/*/lib/M5GFX and apps/*/lib/M5Cardputer are git-ignored and produced by `shim/apply.sh <app-dir> [<libdeps-dir>]` (copies the pristine libs, applies the patches).",
+      "Verify: `rm -rf apps/pense-bem/lib/M5GFX apps/pense-bem/lib/M5Cardputer && shim/apply.sh apps/pense-bem /Users/fcavalcanti/dev/m5/cardputter-pense-pem/.pio/libdeps/m5cardputer` exits 0 and prints 'patched libs ready'; then `cd apps/pense-bem && pio run -e m5cardputer` exits 0.",
+      "Write shim/README.md: what the patches hook, why (SPEC finding B: rebuild against a patched display lib = transparent mirror for any open-source app), the overlay recipe (`[platformio] src_dir` pointing at the app, `lib_extra_dirs = ../../shim/lib`, `lib_deps = m5stack/M5Unified@0.2.20` + `symlink://../../shim/lib/DroidputterShim`, `-I ../../shim/lib/DroidputterShim/src`, `-DDROIDPUTTER=1`), and the version pins (M5Unified 0.2.21+ needs M5GFX 0.2.28 -> stay on 0.2.20 until the patch is rebased)."
+    ],
+    "passes": false
+  },
+  {
+    "category": "setup",
+    "description": "Create the host receiver skeleton tools/dp_receiver.py (pyserial 3.5 present on the Mac) with a self-test",
+    "steps": [
+      "Create tools/dp_receiver.py: opens the first /dev/cu.usbmodem* (or --port), 115200 8N1, DTR+RTS asserted; reads bulk chunks; feeds a `Framer` class (pure Python, importable) that yields (type, payload) frames per docs/PROTOCOL.md; `--record FILE` appends every raw chunk with a monotonic ms timestamp to FILE.bin + FILE.jsonl; `--png DIR` writes the current framebuffer as PNG every second (use only the standard library + a tiny PNG writer, no Pillow dependency); `--key r,c` sends a KEY frame.",
+      "Add `python3 tools/dp_receiver.py --selftest`: feeds a synthetic byte string containing a HELLO, one FILL, one RECT split across two chunks and one corrupted sync, asserts the framer yields exactly 3 frames and resyncs.",
+      "Verify: `python3 tools/dp_receiver.py --selftest` exits 0 and prints `selftest ok`."
+    ],
+    "passes": false
+  },
+  {
+    "category": "protocol",
+    "description": "Write docs/PROTOCOL.md — the Droidputter wire protocol v0 (ESP <-> phone over USB-CDC)",
+    "steps": [
+      "Framing (both directions): sync `0xD7 0x50` ('DP'), type u8, length u16 little-endian (payload bytes), payload, crc8 (poly 0x07 over type+length+payload). Max payload 4096 B. A receiver that loses sync scans forward for the next `0xD7 0x50` whose crc8 validates.",
+      "ESP -> phone types: 0x01 HELLO {proto u8=0, w u16, h u16, rotation u8, bpp u8 (16), board name up to 16 chars, app name up to 32 chars}; 0x02 FILL {x,y,w,h u16, color RGB565 u16}; 0x03 RECT {x,y,w,h u16, then w*h*2 bytes RGB565 in row-major order, big-endian as the panel receives them}; 0x04 RECT_RLE {x,y,w,h u16, then runs of (count u8, color u16)} — emitted only when it is shorter than RECT; 0x05 STATS {frames u32, bytes u32, dropped u32} once per second; 0x06 PING.",
+      "phone -> ESP types: 0x81 KEY {row u8, col u8, state u8 (1 down / 0 up)} using the Cardputer 4x14 physical matrix coordinates (row 0 = top row `esc..del`, col 0 = leftmost); 0x82 GPS_NMEA {one NMEA sentence, no CRLF} (reserved for the GPS milestone); 0x83 PING; 0x84 HELLO_ACK {phone screen w,h u16}.",
+      "State the bandwidth budget from SPEC.md finding C: a full 240x135 RGB565 frame is 64,800 B; ESP32-S3 USB-Serial/JTAG is USB full-speed (12 Mbit/s), realistic 300-800 KB/s, so full-frame redraws are 5-12 fps and partial (dirty-rect) redraws are what makes text apps feel instant. The receiver must tolerate dropped frames: STATS.dropped > 0 is reported, not fatal.",
+      "Write the byte layout table for every type and one worked example per direction (hex bytes + meaning).",
+      "Verify: `test -s docs/PROTOCOL.md` and the file contains the strings `0xD7 0x50`, `RECT_RLE`, `KEY {row` and `64,800`."
+    ],
+    "passes": false
+  },
+  {
+    "category": "spike",
+    "description": "S1 — Baseline: Pense-Bem builds unchanged with the local toolchain",
+    "steps": [
+      "Run `cd /Users/fcavalcanti/dev/m5/cardputter-pense-pem && pio run -e m5cardputer`; it must exit 0 (check `$?`, never grep the log). Record the firmware size line in progress.txt.",
+      "Record in progress.txt which libraries PlatformIO resolved (`ls .pio/libdeps/m5cardputer`).",
+      "Verify: exit code 0 and `.pio/build/m5cardputer/firmware.bin` exists."
+    ],
+    "passes": false
+  },
+  {
+    "category": "spike",
+    "description": "S2 — Shim v0: patched Panel_ST7789 tees pixel writes to USB; Pense-Bem renders on the Mac",
+    "steps": [
+      "ALREADY BUILT on 2026-09-02 (see progress.txt S2 [REAL]); this task re-verifies it. The tee lives in shim/lib/DroidputterShim/src/droidputter.cpp (window buffer 64,800 B, RECT/RECT_RLE flush, HWCDC TX ring 32 KB, 40 ms write budget, STATS) and the 8 Panel_LCD.cpp hooks come from shim/patches. No app modification: dp::begin() is called lazily from the first setWindow, dp::poll() from Keyboard_Class::updateKeyList().",
+      "Keep the library name `M5GFX` and version `0.2.27` in the patched copy's library.json so PlatformIO's LDF resolves it instead of the registry copy; document the mechanism in shim/README.md ('rebuild against the patched M5GFX = SPEC finding B').",
+      "apps/pense-bem/platformio.ini already builds Felipe's app UNCHANGED from /Users/fcavalcanti/dev/m5/cardputter-pense-pem/src via `[platformio] src_dir`; keep it that way (never edit the app repo).",
+      "Build: `cd apps/pense-bem && pio run` exits 0. If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed.",
+      "With the Cardputer ADV plugged into the Mac (`/dev/cu.usbmodem*` present): `pio run -t upload`, then `python3 tools/dp_receiver.py --record fixtures/pense-bem/boot --png /tmp/dp` and press keys on the Cardputer: the Mac PNG must show the Pense-Bem screen (asterisk, menu, a math question). Record in progress.txt: bytes/s during menu navigation, bytes/s during a full redraw, STATS.dropped, the HELLO fields, and whether the app on the TFT stays smooth. Label [REAL].",
+      "Verify: `fixtures/pense-bem/boot.bin` exists and is > 10 KB, `python3 tools/dp_receiver.py --decode fixtures/pense-bem/boot.bin` prints a HELLO and at least one RECT, and the recorded bytes/s numbers are in progress.txt."
+    ],
+    "passes": false
+  },
+  {
+    "category": "spike",
+    "description": "S3 — Keyboard injection: KEY frames from the Mac drive Pense-Bem",
+    "steps": [
+      "In the patched M5Cardputer copy inside DroidputterShim, patch `Keyboard_Class::updateKeyList()` so that key positions received over USB (a small ring filled by `droidputter_poll()` from KEY frames) are merged into the key list exactly like physical keys, for BOTH the GPIO-matrix Cardputer and the TCA8418 ADV path; a KEY down stays listed until its KEY up arrives. Call `droidputter_poll()` from `Keyboard_Class::updateKeyList()` so apps need no extra loop call.",
+      "Document the row/col mapping in docs/PROTOCOL.md using the physical layout: row0 `esc 1 2 3 4 5 6 7 8 9 0 _ = del`, row1 `tab q w e r t y u i o p [ ] \\\\`, row2 `fn shift a s d f g h j k l ; ' enter`, row3 `ctrl opt alt z x c v b n m , . / space`.",
+      "Build + flash as in S2. If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed.",
+      "Hardware: `python3 tools/dp_receiver.py --key 0,1` (the `1` key) must start Adição in Pense-Bem (mode line on the TFT and on the Mac PNG); `--key 2,13` (enter) answers. Record the key-to-screen latency measured by the receiver (KEY sent -> first RECT/FILL received) in progress.txt, label [REAL].",
+      "Verify: progress.txt has the S3 [REAL] line with a latency number in ms, and fixtures/pense-bem/keys.bin exists."
+    ],
+    "passes": false
+  },
+  {
+    "category": "spike",
+    "description": "S4 — Flash the shim build from the PHONE with ESP32_Flasher (the r/CardPuter answer, live)",
+    "steps": [
+      "Produce the three artifacts PlatformIO made for apps/pense-bem: `.pio/build/m5cardputer/bootloader.bin` (offset 0x0), `partitions.bin` (0x8000), `firmware.bin` (0x10000); also `boot_app0.bin` from the platform (0xe000) if the build uses it. Put them on the phone (serve them from the Mac: `python3 -m http.server 8765` in the build dir, open `http://<mac-ip>:8765/` in the phone browser).",
+      "On the Poco X7 Pro install `ESP32_Flasher` (Play Store id com.esp_flash.esp_flash_app). Cardputer ADV <-> phone with a USB-C data cable (OTG). In the app: chip ESP32S3, Bootloader Auto ON, files with the offsets above, Flash. If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed.",
+      "Pass = the Cardputer reboots into Pense-Bem. Record in progress.txt: phone Android version, whether the auto-bootloader worked or BOOT+RST was needed, flash duration. Label [REAL]. Note the finding in docs/FLASHING.md: flashing from a phone works today with existing apps; a native flasher is a later milestone.",
+      "Verify: docs/FLASHING.md exists and progress.txt has the S4 [REAL] line."
+    ],
+    "passes": false
+  },
+  {
+    "category": "spike",
+    "description": "S5 — Bandwidth ceiling: measure USB-CDC throughput and full-frame fps on the Cardputer ADV",
+    "steps": [
+      "Add `droidputter_bench()` to the shim (enabled with `-DDROIDPUTTER_BENCH=1`): after HELLO, push 50 full-screen RECT frames of a test pattern as fast as HWCDC accepts, then STATS. Build with the flag, flash. If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed.",
+      "Hardware: receiver reports bytes/s and fps over the 50 frames; try `Serial.setTxBufferSize` 8192 / 32768 / 65536 and record each. Record the best numbers in docs/PROTOCOL.md under 'Measured'.",
+      "Decision recorded in docs/PROTOCOL.md: whether RECT_RLE is required for full-frame apps (if fps < 8 at 32 KB buffer) and the default TX buffer size the shim ships with.",
+      "Verify: docs/PROTOCOL.md contains a 'Measured' table with at least three buffer sizes and fps numbers labelled [REAL]."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "Host-testable framing core: shim/lib/DroidputterShim/src/dp_frame.{h,cpp} with a native test",
+    "steps": [
+      "Pure C++17, no Arduino headers: `dp_frame_encode(type, payload, len, out)` and a `DpFrameParser` with `feed(byte)` returning complete frames; crc8 poly 0x07; resync on bad crc; max payload 4096.",
+      "Add a PlatformIO `[env:native]` in shim/platformio.ini with `platform = native` and test/test_dp_frame/ using Unity: encode->parse round trip, split feeds, corrupted sync, oversize length rejected.",
+      "Verify: `cd shim && pio test -e native` exits 0 and prints the four tests as PASSED."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "RLE encoder with host tests: dp_rle.{h,cpp}",
+    "steps": [
+      "`dp_rle_encode(const uint16_t* px, size_t n, uint8_t* out, size_t cap)` producing (count u8 <=255, color u16) runs; returns 0 when the RLE output would not be shorter than raw; decoder for the tests.",
+      "Unity tests in shim/test/test_dp_rle/: solid rect compresses to n/255 runs, alternating pixels return 0, round trip equals input.",
+      "Verify: `cd shim && pio test -e native` exits 0 with the RLE tests listed as PASSED."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "Panel tee: emit FILL/RECT/RECT_RLE from the patched Panel_LCD with a frame-rate governor",
+    "steps": [
+      "Refactor the S2 tee into `dp_display.cpp`: window tracking, coalescing of consecutive writePixels calls inside one setWindow into one RECT, RLE attempt per RECT (use dp_rle), and a governor that drops (counts) frames when the HWCDC ring buffer has less than one frame of free space instead of blocking the app.",
+      "Build the Pense-Bem overlay and, If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed. Hardware: Pense-Bem menu navigation on the Mac receiver shows no visual corruption over 5 minutes; STATS.dropped stays 0 during menu use.",
+      "Verify: `cd apps/pense-bem && pio run` exits 0; progress.txt has the [REAL] 5-minute line."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "Virtual panel: Panel_Droidputter (no physical display) so any M5GFX/M5Unified app runs on a bare ESP32-S3 with the phone as its only screen",
+    "steps": [
+      "Implement `Panel_Droidputter : lgfx::Panel_Device` in DroidputterShim with no bus: setWindow/writePixels/writeBlock/writeImage/writeFillRectPreclipped/drawPixelPreclipped only feed the tee (dp_display) and a 240x135 RGB565 shadow framebuffer (64,800 B, static) so HELLO_ACK resync can re-send the whole screen and readRect works. Width/height/rotation from build flags `DROIDPUTTER_W/H/ROT` (default 240x135, landscape).",
+      "Board selection: when built with `-DDROIDPUTTER_VIRTUAL=1` the patched M5GFX `autodetect()` is bypassed and `M5.Display` is the virtual panel; M5Unified still initialises everything else (power, I2C, speaker if present). Document in shim/README.md.",
+      "Build apps/m5-example and apps/pense-bem with `[env:esp32-s3-devkitc-1-virtual]` (board esp32-s3-devkitc-1, `-DDROIDPUTTER_VIRTUAL=1`, `-DDROIDPUTTER_KEYS_VIRTUAL=1` so Keyboard_Class has no physical matrix and only USB-injected keys). Builds exit 0.",
+      "If the target board is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed. Hardware target = the bare ESP32-S3-N16R8 devkit on the desk ONLY with Felipe's explicit OK (INVENTORY reserves it for esp-claw); otherwise the Cardputer ADV with `-DDROIDPUTTER_VIRTUAL=1` (its TFT stays dark, the phone is the only screen) — a valid proof too.",
+      "Hardware: the Mac receiver (then the phone) shows the app UI from a board whose own display is dark or absent; KEY frames drive it. Record [REAL] in progress.txt.",
+      "Verify: both virtual builds exit 0 and progress.txt has the virtual-panel [REAL] line (or UAT)."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "HELLO/STATS/PING and the USB link state machine in droidputter.cpp",
+    "steps": [
+      "HELLO sent at begin and whenever a PING or HELLO_ACK arrives (so a phone that connects late gets the geometry); STATS every 1000 ms; a link is 'up' only after HELLO_ACK, and while 'down' the tee is silent (no USB writes) so an app on the ESP alone runs at full speed.",
+      "Full-frame resync: on HELLO_ACK the shim requests a repaint by emitting one RECT of the panel's current contents if the panel supports readPixels (ST7789 on the Cardputer: use `readRect`), else emits FILL black and relies on the app's next redraw. Record which path the Cardputer takes.",
+      "Verify: with the receiver started AFTER the ESP booted, the Mac shows the current screen within 2 s (a [REAL] line in progress.txt), and `pio test -e native` still passes."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "Keyboard injection library code with host tests: dp_keys.{h,cpp}",
+    "steps": [
+      "Pure C++ ring of injected key positions (row,col,state) with `push`, `snapshot into a fixed array`, de-duplication of repeated downs, and release-on-link-down (all injected keys released when the USB link drops).",
+      "Unity tests: down/up ordering, duplicate down ignored, link-down releases all.",
+      "Wire it into the patched Keyboard_Class::updateKeyList (both matrix and TCA8418 paths) as done in S3, replacing the S3 prototype.",
+      "Verify: `cd shim && pio test -e native` exits 0; `cd apps/pense-bem && pio run` exits 0."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "GPS through the shim: GPS_NMEA frames from the phone become a Stream the app reads as its GPS serial",
+    "steps": [
+      "Add `DroidputterGPS` (an `arduino::Stream` subclass backed by a 1 KB ring filled by `droidputter_poll()` from 0x82 GPS_NMEA frames; each frame is one sentence, the shim appends CRLF). Expose `droidputter_gps()` returning that Stream so an app does `TinyGPSPlus gps; while (droidputter_gps().available()) gps.encode(droidputter_gps().read());` — the only app-side change for apps that read GPS from a UART.",
+      "Host tests (native env): ring overflow drops whole sentences, never partial; CRLF appended; available()/read() semantics.",
+      "Add apps/gps-demo/: a 40-line M5Unified app that prints lat/lon/sats/time from TinyGPSPlus on the display, built for the Cardputer ADV and the virtual env.",
+      "Verify: `cd shim && pio test -e native` exits 0 and `cd apps/gps-demo && pio run` exits 0."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "Second rebuilt app proves 'any app': the M5Cardputer library's own example (or a UiFlow-free demo) built against the shim",
+    "steps": [
+      "Create apps/m5-example/ building `shim/upstream/M5Cardputer/examples/Basic/keyboard` (or the closest keyboard+display example in that library) with the same overlay pattern (lib_extra_dirs + -DDROIDPUTTER=1 + the 3-line hook).",
+      "Build exits 0. If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed. Hardware: typed characters appear on the Mac receiver; keys injected from the Mac appear on the TFT.",
+      "Verify: `cd apps/m5-example && pio run` exits 0 and fixtures/m5-example/keys.bin exists."
+    ],
+    "passes": false
+  },
+  {
+    "category": "shim",
+    "description": "StickS3 target: build the m5-example overlay for the M5Stack StickS3 #2 and stream over USB",
+    "steps": [
+      "Add `[env:m5stack-sticks3]` to apps/m5-example/platformio.ini (board `esp32-s3-devkitc-1` variant flags as used by /Users/fcavalcanti/dev/felipe/home-automations/devices/m5sticks3/, `PSRAM=opi`). Build exits 0.",
+      "Hardware clause: if no StickS3 #2 is attached, UAT line. Trap from INVENTORY.md: a fresh StickS3 can sit latched in ROM download-wait — flashing works but the app never runs; exit = side power button double-press then single press.",
+      "Hardware: HELLO reports 240x135, the receiver renders the example, STATS.dropped 0 while idle. Label [REAL].",
+      "Verify: progress.txt has the StickS3 [REAL] line (or UAT line)."
+    ],
+    "passes": false
+  },
+  {
+    "category": "setup",
+    "description": "Create the Android Gradle project: android/ with modules :core (Kotlin/JVM) and :app (Android, Compose)",
+    "steps": [
+      "Use Gradle wrapper 8.x, AGP 8.x, Kotlin 2.x; `android/local.properties` with `sdk.dir=/Users/fcavalcanti/Library/Android/sdk`; :core is `kotlin(\"jvm\")` with JUnit5 + kover; :app is `com.android.application`, namespace `com.droidputter`, minSdk 26, compileSdk 35, Compose BOM, dependency `com.github.mik3y:usb-serial-for-android:3.8.0` (jitpack repo) and `implementation(project(\":core\"))`.",
+      "Add a static gate script android/gates.sh: `grep -rln 'import android\\.' core/src | wc -l` must print 0; and a kover verify rule of 80% line coverage on :core.",
+      "Verify: `cd android && JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew :core:test :app:assembleDebug` exits 0 and `app/build/outputs/apk/debug/app-debug.apk` exists."
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "Framer (Kotlin, pure): bytes in -> Frame(type, payload) out, with resync, tested against docs/PROTOCOL.md examples",
+    "steps": [
+      "`class Framer { fun feed(bytes: ByteArray): List<Frame> }` implementing sync 0xD7 0x50, length u16 LE, crc8; drops bytes until the next valid frame on crc failure; handles frames split across feeds.",
+      "Tests: the worked examples from docs/PROTOCOL.md decode byte-exact; split feed; corrupted crc skipped; a 4097-byte length rejected; the S2 fixture `fixtures/pense-bem/boot.bin` decodes to >= 1 HELLO and >= 1 RECT with no framing errors.",
+      "Verify: `./gradlew :core:test` exits 0 with these tests listed."
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "Message decoders: HELLO, FILL, RECT, RECT_RLE, STATS -> typed Kotlin classes",
+    "steps": [
+      "Sealed class `DpMessage`; decoders with bounds checks (a RECT whose w*h*2 != payload size - 8 is an error, not a crash); RLE expansion into an IntArray of RGB565.",
+      "Tests: one per type from the PROTOCOL.md examples, plus the fixture replay: every frame in fixtures/pense-bem/boot.bin decodes; count of each type is asserted against numbers written in fixtures/README.md.",
+      "Verify: `./gradlew :core:test` exits 0."
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "ScreenModel: applies FILL/RECT/RECT_RLE to an RGB565 IntArray framebuffer sized from HELLO; dirty-region tracking",
+    "steps": [
+      "`class ScreenModel { fun apply(msg): DirtyRect? }`, resize on HELLO, clip out-of-bounds writes (count them), `snapshot()` returns a copy; no android imports.",
+      "Tests: FILL then RECT produce the expected pixels; out-of-bounds RECT clipped; replaying fixtures/pense-bem/boot.bin ends with a non-black framebuffer and the top-left pixel equal to the value recorded in fixtures/README.md.",
+      "Verify: `./gradlew :core:test` exits 0; kover line coverage of :core >= 80% (`./gradlew :core:koverVerify`)."
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "Key map: Cardputer 4x14 physical layout -> (row,col) KEY frames, with shift/fn legends",
+    "steps": [
+      "Data table of the 56 keys with primary and shifted legends per docs/PROTOCOL.md; `fun encodeKey(row, col, down): ByteArray`; mapping from Android hardware KeyEvent codes (arrows, enter, backspace, letters, digits, space) to (row,col) where a physical key exists.",
+      "Tests: 56 entries, no duplicates, `1` is (0,1), enter is (2,13), space is (3,13); encodeKey output byte-exact with PROTOCOL.md.",
+      "Verify: `./gradlew :core:test` exits 0."
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "Phone GPS -> NMEA: build GPGGA/GPRMC sentences from a Location, plus raw NMEA passthrough, tested",
+    "steps": [
+      "Pure Kotlin `NmeaSynth`: from (lat, lon, altitude, speed, bearing, time, accuracy, satellite count) produce valid `$GPGGA` and `$GPRMC` sentences with correct checksums at 1 Hz; `NmeaNormalizer` rewrites `$GN` talker ids to `$GP` for raw sentences passed through from Android's `OnNmeaMessageListener`.",
+      "Tests: checksum correctness against two known-good sentences, southern/western hemisphere signs, a 0-satellite fix produces GGA quality 0, `$GNGGA` -> `$GPGGA`.",
+      "Verify: `./gradlew :core:test` exits 0."
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "Link state machine: Detached -> Attached -> PermissionPending -> Opening -> Linked -> Error/Reconnecting, with HELLO_ACK and PING timers",
+    "steps": [
+      "Pure Kotlin state machine driven by events (deviceAttached, permissionGranted/denied, opened, helloReceived, pingTimeout, detached); emits actions (requestPermission, open, sendHelloAck, sendPing, close). PING every 2 s, link considered lost after 3 missed.",
+      "Tests: happy path; permission denied -> Error; detach while Linked -> Reconnecting; 3 missed pings -> Reconnecting.",
+      "Verify: `./gradlew :core:test` exits 0."
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "Transport interface + fake: `interface DpTransport { write(bytes); incoming: Flow<ByteArray> }` and a replay transport that plays a fixture with its recorded timing",
+    "steps": [
+      "`FixtureTransport(path)` replays fixtures/*.jsonl chunks at recorded timestamps (optionally at speed factor N); used by tests and by the app's demo mode.",
+      "Tests: replaying fixtures/pense-bem/boot.jsonl through Framer+ScreenModel yields the same final framebuffer as the direct .bin replay.",
+      "Verify: `./gradlew :core:test` exits 0."
+    ],
+    "passes": false
+  },
+  {
+    "category": "transport-usb",
+    "description": "USB-OTG transport with usb-serial-for-android: attach intent, permission, CDC-ACM open, single reader thread",
+    "steps": [
+      "Manifest: `<uses-feature android:name=\"android.hardware.usb.host\"/>`, activity intent-filter `USB_DEVICE_ATTACHED` with res/xml/device_filter.xml (vendor-id 12346 = 0x303A; also CDC class match), permission broadcast receiver.",
+      "`UsbDpTransport`: `UsbSerialProber.getDefaultProber()` plus a custom ProbeTable adding VID 0x303A to `CdcAcmSerialDriver`; open, `setParameters(115200,8,1,NONE)`, `setDTR(true)`, `setRTS(true)`, `SerialInputOutputManager` feeding a Flow; `purgeHwBuffers` on close. Detach -> emits event to the state machine; re-enumeration after ESP reset must reconnect without user action beyond the OS permission dialog.",
+      "Verify: `./gradlew :app:assembleDebug` exits 0; static gate passes. Hardware: with the Poco on WIRELESS adb (`adb pair`/`adb connect`), install the APK (`adb install -r`), plug the Cardputer ADV running the S2 shim build: logcat shows `HELLO` decoded within 2 s of granting permission. UAT line if no phone."
+    ],
+    "passes": false
+  },
+  {
+    "category": "app",
+    "description": "Renderer: full-screen Compose Canvas draws the ScreenModel framebuffer scaled with integer nearest-neighbour, landscape, letterboxed",
+    "steps": [
+      "Convert RGB565 -> ARGB into a reused Bitmap only for dirty rects; invalidate at most 60 Hz; show the HELLO app/board name in a thin status bar.",
+      "Demo mode (no USB): a 'Replay fixture' button plays fixtures/pense-bem/boot.jsonl through FixtureTransport so the renderer is verifiable on the emulator.",
+      "Verify: `./gradlew :app:assembleDebug` exits 0; on the AVD `Medium_Phone_API_36.1` the demo replay shows the Pense-Bem screen (screenshot saved via `adb exec-out screencap -p > docs/img/demo-replay.png`)."
+    ],
+    "passes": false
+  },
+  {
+    "category": "app",
+    "description": "Soft Cardputer keyboard: 4x14 on-screen keys sending KEY down/up, plus hardware-keyboard passthrough",
+    "steps": [
+      "Compose grid using the core key table (legends, shift/fn modifiers held as sticky keys), touch down -> KEY down, up -> KEY up; physical KeyEvents mapped through the core map; haptic tick optional.",
+      "Verify: `./gradlew :app:assembleDebug` exits 0. Hardware: pressing `1` on the phone starts Adição in Pense-Bem on the TFT and the phone screen follows within the S3-measured latency (record [REAL] in progress.txt); UAT line if no phone."
+    ],
+    "passes": false
+  },
+  {
+    "category": "app",
+    "description": "Connection screen: device list, permission state, link state, STATS (fps, KB/s, dropped) and a 'Reconnect' action",
+    "steps": [
+      "State from the core state machine; a persistent notification while linked (foreground service) so the link survives screen-off; 'Send HELLO_ACK again' as the resync action.",
+      "Verify: `./gradlew :app:assembleDebug` exits 0. Hardware: unplug/replug the Cardputer 10 times; the app returns to Linked each time without restarting the app (record [REAL] count); UAT line if no phone."
+    ],
+    "passes": false
+  },
+  {
+    "category": "app",
+    "description": "GPS feed: the app streams phone location as GPS_NMEA frames while linked (foreground location permission)",
+    "steps": [
+      "Request ACCESS_FINE_LOCATION; prefer `LocationManager.addNmeaListener` raw sentences (normalised), fall back to `NmeaSynth` from `GPS_PROVIDER` fixes when no NMEA arrives for 3 s (Android goes silent on fused/network fixes — SPEC finding D). Toggle in the connection screen; show last sentence + fix status.",
+      "If the target board is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed. Hardware: apps/gps-demo on the Cardputer ADV linked to the phone shows the phone's lat/lon and satellite count on BOTH the TFT and the phone screen within 10 s outdoors (or a synthesized fix indoors). Record [REAL].",
+      "Verify: `./gradlew :app:assembleDebug` exits 0 and progress.txt has the GPS [REAL] line (or UAT)."
+    ],
+    "passes": false
+  },
+  {
+    "category": "app",
+    "description": "End-to-end on the phone: Pense-Bem fully playable from the Android screen and keyboard (the north-star demo)",
+    "steps": [
+      "With the S2/S3 shim build on the Cardputer ADV and the phone linked: play one Adição round (10 questions) using only the phone. If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed.",
+      "Then repeat with the VIRTUAL build (TFT dark or bare ESP32-S3 devkit if approved): the phone is the only screen and keyboard. This is the north-star proof: bare ESP32-S3 + phone = a Cardputer.",
+      "Record: key-to-screen latency (median of 10 keypresses measured by the app's STATS/timestamps), dropped frames, battery/OTG behaviour (does the phone power the Cardputer with its own battery removed from the loop — note the charge LED). Label [REAL].",
+      "Record a 30 s screen recording via `adb shell screenrecord` into docs/img/demo.mp4 (git-ignored if > 5 MB; link it in README).",
+      "Verify: progress.txt has the end-to-end [REAL] line with a latency number."
+    ],
+    "passes": false
+  },
+  {
+    "category": "catalog",
+    "description": "Catalog manifest format: apps/catalog.json lists droidputter-ready builds (name, board, version, bin parts with offsets, sha256, source repo, license)",
+    "steps": [
+      "Write apps/catalog.json with the Pense-Bem and m5-example entries produced by the spike builds; a script tools/make_catalog.py regenerates it from apps/*/ build outputs and computes sha256.",
+      "Verify: `python3 tools/make_catalog.py --check` exits 0 and `jq length apps/catalog.json` prints >= 2."
+    ],
+    "passes": false
+  },
+  {
+    "category": "catalog",
+    "description": "Catalog screen in the app: list apps from apps/catalog.json (bundled asset), show details, and hand off flashing to ESP32_Flasher with a one-tap share of the bin parts",
+    "steps": [
+      "Until a native flasher exists (later milestone), the app shares the bin parts + a text with the offsets to any installed flasher app via the Android share sheet. Document this hand-off in docs/FLASHING.md.",
+      "Verify: `./gradlew :app:assembleDebug` exits 0. Hardware: sharing Pense-Bem parts to ESP32_Flasher and flashing them boots Pense-Bem (record [REAL]); UAT line if no phone."
+    ],
+    "passes": false
+  },
+  {
+    "category": "catalog",
+    "description": "Third-party app onboarding recipe: docs/PORTING.md — how any open-source Cardputer app gets a droidputter build",
+    "steps": [
+      "Document the overlay pattern (lib_extra_dirs + -DDROIDPUTTER=1 + 3-line hook), the M5GFX/M5Cardputer version constraints, what breaks (apps that talk to the panel bus directly, TFT_eSPI apps: not covered yet), and how to add the result to apps/catalog.json.",
+      "Verify: docs/PORTING.md exists and names the three overlay ingredients."
+    ],
+    "passes": false
+  },
+  {
+    "category": "device",
+    "description": "Other boards: ESP32-C5 (arduino core 3.x needed) and StickS3 #2 — build the virtual/tee overlays and record per-board status",
+    "steps": [
+      "Add a `Panel_Droidputter` virtual panel to the shim (an LGFX panel with no bus that only feeds the tee, width/height from build flags) so M5GFX/M5Unified apps build for boards without a display; build apps/m5-example for `[env:esp32-c5]` (arduino core >= 3.x required for C5: note the toolchain gap in progress.txt if espressif32@6.12.0 cannot target it and fall back to the bare ESP32-S3-N16R8 devkit only with Felipe's explicit OK, since INVENTORY reserves it for esp-claw).",
+      "Hardware clause per board; C5 caveats from INVENTORY: J5 jumper bridged with a cap, native USB port (not the CP2102N UART port), esptool >= 5.3.0 at ~/Library/Arduino15/packages/esp32/tools/esptool_py/5.3.0/esptool.",
+      "Verify: the chosen headless build exits 0 and, on hardware, the Mac receiver shows the example UI from a board with no screen ([REAL] line or UAT)."
+    ],
+    "passes": false
+  },
+  {
+    "category": "verification",
+    "description": "Coverage and static gates",
+    "steps": [
+      "`./gradlew :core:koverVerify` (>= 80% line) exits 0; `android/gates.sh` prints 0 android imports in core; `cd shim && pio test -e native` exits 0; `grep -rn 'malloc\\|new ' shim/lib/DroidputterShim/src/dp_display.cpp | grep -v '//' | wc -l` prints 0 (no per-write allocation).",
+      "Verify: all four commands exit 0 with the stated output."
+    ],
+    "passes": false
+  },
+  {
+    "category": "verification",
+    "description": "Fresh-clone build gate",
+    "steps": [
+      "`d=$(mktemp -d) && git clone <this repo> $d/dp && cd $d/dp/android && ./gradlew :core:test :app:assembleDebug && cd ../shim && pio test -e native && cd ../apps/pense-bem && pio run` — every command exits 0 (PlatformIO may download the platform; network is allowed for this gate).",
+      "Verify: exit 0 for the whole chain."
+    ],
+    "passes": false
+  },
+  {
+    "category": "verification",
+    "description": "Soak: 30 minutes linked, Pense-Bem idle + periodic keypresses, no leak, no drop growth",
+    "steps": [
+      "If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed. Hardware: STATS.dropped does not grow while idle; app heap stable (`adb shell dumpsys meminfo com.droidputter` before/after within 10%); ESP free heap printed by the shim at start and end within 2 KB.",
+      "Verify: progress.txt has the soak [REAL] line with the four numbers."
+    ],
+    "passes": false
+  },
+  {
+    "category": "docs",
+    "description": "Rewrite SPEC.md roadmap to match the north star: M1 shim + USB app (this ledger), M2 catalog + native flasher, M3 GPS/peripherals through the shim, M4 more boards/libraries (TFT_eSPI shim, LovyanGFX-only apps), and move Bruce to an appendix as prior art only",
+    "steps": [
+      "Keep the verified research findings, correct the wired-mode table (screen over USB = shim, proven in S2), and add the measured numbers from S2/S3/S5.",
+      "Verify: `grep -c -i bruce SPEC.md` is lower than before the edit and the roadmap section names M1..M4 as above."
+    ],
+    "passes": false
+  },
+  {
+    "category": "docs",
+    "description": "README.md: what it is, the demo GIF/MP4, how to build the shim overlay for your app, how to flash from a phone, status table per board",
+    "steps": [
+      "Verify: README links docs/PROTOCOL.md, docs/PORTING.md, docs/FLASHING.md and apps/catalog.json."
+    ],
+    "passes": false
+  },
+  {
+    "category": "docs",
+    "description": "AGENTS.md for the new tree: layout, golden rules, the hardware clause, how to run every gate, and the Solvr room `droidputter` for coordination",
+    "steps": [
+      "Verify: `test -s AGENTS.md` and it contains the strings `pio test -e native`, `koverVerify` and `droidputter`."
+    ],
+    "passes": false
+  }
+]

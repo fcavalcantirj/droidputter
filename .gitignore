@@ -1,0 +1,13 @@
+.pio/
+build/
+*.bin
+*.elf
+*.map
+*.apk
+.DS_Store
+android/**/build/
+android/.gradle/
+android/local.properties
+# generated from shim/patches by shim/apply.sh
+apps/*/lib/M5GFX/
+apps/*/lib/M5Cardputer/
