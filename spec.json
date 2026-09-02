@@ -12,7 +12,7 @@
       "Hardware clause used by every hardware task: If the Cardputer ADV is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed.",
       "Write all of the above into docs/GROUND_RULES.md, create progress.txt with the single line `# progress journal`, and verify: `test -s docs/GROUND_RULES.md && test -s progress.txt && git check-ignore -q .pio`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "setup",
