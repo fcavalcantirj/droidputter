@@ -1,1 +1,1 @@
-{ "name": "DroidputterShim", "version": "0.0.1", "description": "Display+keyboard tee over USB-CDC for DROIDPUTTER", "frameworks": "arduino", "platforms": "espressif32" }
+{ "name": "DroidputterShim", "version": "0.0.1", "description": "Display+keyboard tee over USB-CDC for DROIDPUTTER", "frameworks": "*", "platforms": ["espressif32", "native"] }

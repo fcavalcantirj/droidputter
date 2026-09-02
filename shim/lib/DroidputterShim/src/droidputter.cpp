@@ -1,4 +1,7 @@
 #include "droidputter.h"
+// Arduino/M5GFX-only: guarded so `pio test -e native` (dp_frame.{h,cpp}) can
+// compile this library's src/ directory without pulling in ESP32 headers.
+#ifdef ARDUINO
 #include <Arduino.h>
 #include <lgfx/v1/misc/pixelcopy.hpp>
 #include <string.h>
@@ -107,3 +110,4 @@ void poll() {
 }
 uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max) { uint8_t n = nheld < max ? nheld : max; memcpy(rows, held_r, n); memcpy(cols, held_c, n); return n; }
 }
+#endif  // ARDUINO

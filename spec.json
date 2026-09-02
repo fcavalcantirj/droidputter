@@ -112,7 +112,7 @@
       "Add a PlatformIO `[env:native]` in shim/platformio.ini with `platform = native` and test/test_dp_frame/ using Unity: encode->parse round trip, split feeds, corrupted sync, oversize length rejected.",
       "Verify: `cd shim && pio test -e native` exits 0 and prints the four tests as PASSED."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",
