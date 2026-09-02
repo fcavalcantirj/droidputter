@@ -238,7 +238,7 @@
       "Tests: FILL then RECT produce the expected pixels; out-of-bounds RECT clipped; replaying fixtures/pense-bem/boot.bin ends with a non-black framebuffer and the top-left pixel equal to the value recorded in fixtures/README.md.",
       "Verify: `./gradlew :core:test` exits 0; kover line coverage of :core >= 80% (`./gradlew :core:koverVerify`)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "core",
