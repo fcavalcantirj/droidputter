@@ -75,11 +75,22 @@ def apply(scr, t, p, stats):
         x, y, w, h = struct.unpack_from("<HHHH", p); out = bytearray()
         for i in range(8, len(p) - 2, 3): out += bytes(p[i + 1:i + 3]) * p[i]
         if len(out) != w * h * 2: return "RLE bad expand %d vs %d" % (len(out), w * h * 2)
-        scr.put(x, y, w, h, out); return "RLE  %d,%d %dx%d (%dB)" % (x, y, w, h, len(p))
+        scr.put(x, y, w, h, out); return "RECT_RLE %d,%d %dx%d (%dB)" % (x, y, w, h, len(p))
     if t == STATS and len(p) == 16:
         f, b, d, heap = struct.unpack("<IIII", p); stats["esp"] = dict(frames=f, bytes=b, dropped=d, heap=heap); return "STATS frames=%d bytes=%d dropped=%d heap=%d" % (f, b, d, heap)
     if t == PING: return "PONG"
     return "type %d len %d" % (t, len(p))
+
+def decode_file(path):
+    fr, scr, st = Framer(), Screen(), {}
+    with open(path, "rb") as f: data = f.read()
+    counts = {}
+    for t, p in fr.feed(data):
+        msg = apply(scr, t, p, st); name = msg.split()[0]
+        counts[name] = counts.get(name, 0) + 1
+        print(msg)
+    print("counts", counts, "bad", fr.bad)
+    return 0
 
 def selftest():
     fr = Framer(); s = Screen(4, 2); st = {}
@@ -92,8 +103,9 @@ def selftest():
     assert fr.bad == 1; s.png("/tmp/dp_selftest.png"); print("selftest ok", names); return 0
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--record"); ap.add_argument("--png"); ap.add_argument("--key"); ap.add_argument("--selftest", action="store_true"); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--record"); ap.add_argument("--png"); ap.add_argument("--key"); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--decode"); a = ap.parse_args()
     if a.selftest: sys.exit(selftest())
+    if a.decode: sys.exit(decode_file(a.decode))
     import serial
     port = a.port or (glob.glob("/dev/cu.usbmodem*") + [None])[0]
     if not port: sys.exit("no /dev/cu.usbmodem* — plug the ESP (native USB) first")

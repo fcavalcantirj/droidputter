@@ -68,7 +68,7 @@
       "With the Cardputer ADV plugged into the Mac (`/dev/cu.usbmodem*` present): `pio run -t upload`, then `python3 tools/dp_receiver.py --record fixtures/pense-bem/boot --png /tmp/dp` and press keys on the Cardputer: the Mac PNG must show the Pense-Bem screen (asterisk, menu, a math question). Record in progress.txt: bytes/s during menu navigation, bytes/s during a full redraw, STATS.dropped, the HELLO fields, and whether the app on the TFT stays smooth. Label [REAL].",
       "Verify: `fixtures/pense-bem/boot.bin` exists and is > 10 KB, `python3 tools/dp_receiver.py --decode fixtures/pense-bem/boot.bin` prints a HELLO and at least one RECT, and the recorded bytes/s numbers are in progress.txt."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "spike",
