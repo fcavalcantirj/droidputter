@@ -11,3 +11,4 @@ android/local.properties
 # generated from shim/patches by shim/apply.sh
 apps/*/lib/M5GFX/
 apps/*/lib/M5Cardputer/
+!fixtures/**/*.bin
