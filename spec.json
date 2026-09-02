@@ -278,7 +278,7 @@
       "Tests: replaying fixtures/pense-bem/boot.jsonl through Framer+ScreenModel yields the same final framebuffer as the direct .bin replay.",
       "Verify: `./gradlew :core:test` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "transport-usb",
