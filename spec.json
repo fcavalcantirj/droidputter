@@ -268,7 +268,7 @@
       "Tests: happy path; permission denied -> Error; detach while Linked -> Reconnecting; 3 missed pings -> Reconnecting.",
       "Verify: `./gradlew :core:test` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "core",
