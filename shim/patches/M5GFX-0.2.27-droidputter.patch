@@ -68,3 +68,36 @@
      _bus->writeBytes(data, len, true, use_dma);
      if (_cfg.dlen_16bit && (_write_bits & 15) && (len & 1))
      {
+--- a/M5GFX/src/M5GFX.cpp	2026-09-02 15:50:19
++++ b/M5GFX/src/M5GFX.cpp	2026-09-02 15:50:28
+@@ -26,6 +26,7 @@
+ #include "lgfx/v1/panel/Panel_GDEW0154M09.hpp"
+ #include "lgfx/v1/panel/Panel_GDEW0154D67.hpp"
+ #include "lgfx/v1/panel/Panel_IT8951.hpp"
++#include <dp_panel.h>
+ #include "lgfx/v1/touch/Touch_CHSC6540.hpp"
+ #include "lgfx/v1/touch/Touch_CSTxxx.hpp"
+ #include "lgfx/v1/touch/Touch_FT5x06.hpp"
+@@ -1019,7 +1020,22 @@
+     if (getBoard() != board_t::board_unknown)
+     {
+       return true;
++    }
++
++#if defined ( DROIDPUTTER_VIRTUAL )
++    // No physical panel to probe: skip the whole autodetect() I2C/SPI dance
++    // and hand the app a no-bus panel that only feeds the USB tee + shadow
++    // framebuffer (dp_panel.h). board_M5StampS3 is the closest real board_t
++    // (bare ESP32-S3, no display of its own) -- picked for logging only,
++    // nothing downstream switches on it before this function returns.
++    {
++      auto p = new Panel_Droidputter();
++      _panel_last.reset(p);
++      panel(p);
++      _board = board_t::board_M5StampS3;
++      return LGFX_Device::init_impl(use_reset, use_clear);
+     }
++#endif
+ 
+     static constexpr char NVS_KEY[] = "AUTODETECT";
+     std::uint32_t nvs_board = 0;

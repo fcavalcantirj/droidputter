@@ -145,7 +145,7 @@
       "Hardware: the Mac receiver (then the phone) shows the app UI from a board whose own display is dark or absent; KEY frames drive it. Record [REAL] in progress.txt.",
       "Verify: both virtual builds exit 0 and progress.txt has the virtual-panel [REAL] line (or UAT)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",
