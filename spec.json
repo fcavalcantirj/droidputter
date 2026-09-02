@@ -208,7 +208,7 @@
       "Add a static gate script android/gates.sh: `grep -rln 'import android\\.' core/src | wc -l` must print 0; and a kover verify rule of 80% line coverage on :core.",
       "Verify: `cd android && JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew :core:test :app:assembleDebug` exits 0 and `app/build/outputs/apk/debug/app-debug.apk` exists."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "core",
