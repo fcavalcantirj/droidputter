@@ -122,7 +122,7 @@
       "Unity tests in shim/test/test_dp_rle/: solid rect compresses to n/255 runs, alternating pixels return 0, round trip equals input.",
       "Verify: `cd shim && pio test -e native` exits 0 with the RLE tests listed as PASSED."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "shim",
