@@ -91,7 +91,7 @@
       "Pass = the Cardputer reboots into Pense-Bem. Record in progress.txt: phone Android version, whether the auto-bootloader worked or BOOT+RST was needed, flash duration. Label [REAL]. Note the finding in docs/FLASHING.md: flashing from a phone works today with existing apps; a native flasher is a later milestone.",
       "Verify: docs/FLASHING.md exists and progress.txt has the S4 [REAL] line."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "spike",
