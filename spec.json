@@ -218,7 +218,7 @@
       "Tests: the worked examples from docs/PROTOCOL.md decode byte-exact; split feed; corrupted crc skipped; a 4097-byte length rejected; the S2 fixture `fixtures/pense-bem/boot.bin` decodes to >= 1 HELLO and >= 1 RECT with no framing errors.",
       "Verify: `./gradlew :core:test` exits 0 with these tests listed."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "core",

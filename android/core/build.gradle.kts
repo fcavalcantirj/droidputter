@@ -15,6 +15,7 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("droidputter.fixturesDir", rootProject.projectDir.parentFile.resolve("fixtures").absolutePath)
 }
 
 kover {
