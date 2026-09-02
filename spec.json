@@ -45,7 +45,7 @@
       "Write the byte layout table for every type and one worked example per direction (hex bytes + meaning).",
       "Verify: `test -s docs/PROTOCOL.md` and the file contains the strings `0xD7 0x50`, `RECT_RLE`, `KEY {row` and `64,800`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "spike",
