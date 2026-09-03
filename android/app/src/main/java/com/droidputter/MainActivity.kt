@@ -34,6 +34,7 @@ import com.droidputter.catalog.CatalogScreen
 import com.droidputter.connection.ConnectionScreen
 import com.droidputter.core.catalog.CatalogEntry
 import com.droidputter.core.keys.AndroidKeyMap
+import com.droidputter.core.keys.CardputerKeyMap
 import com.droidputter.core.keys.encodeKey
 import com.droidputter.core.link.LinkAction
 import com.droidputter.core.link.LinkEvent
@@ -329,6 +330,7 @@ class MainActivity : ComponentActivity() {
     /** Shared by the soft keyboard and hardware-keyboard passthrough below: both just need to
      * turn a Cardputer (row, col, down) into a KEY frame on whatever transport is open. */
     private fun sendKey(row: Int, col: Int, down: Boolean) {
+        Log.d(TAG, "key r=$row c=$col ${if (down) "down" else "up"} (${CardputerKeyMap.at(row, col)?.legend})")
         transport?.write(encodeKey(row, col, down))
     }
 

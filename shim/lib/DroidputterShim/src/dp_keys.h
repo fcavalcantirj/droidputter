@@ -8,9 +8,14 @@
 namespace dp {
 
 constexpr uint8_t DP_KEYS_MAX = 16;
+// Minimum number of snapshots (keyboard updates) a press stays visible even if its release
+// already arrived -- see dp_keys.cpp.
+constexpr uint8_t DP_KEYS_MIN_SEEN = 2;
 
 // KEY down (down=1) adds (row,col) if not already held (duplicate downs are
-// ignored, the key just stays held); KEY up (down=0) removes it if present.
+// ignored, the key just stays held); KEY up (down=0) removes it if present -- deferred until
+// the key has been reported by DP_KEYS_MIN_SEEN snapshots, so a tap shorter than one app loop
+// is still seen by Keyboard_Class::isChange().
 void dp_keys_push(uint8_t row, uint8_t col, uint8_t down);
 
 // Copies up to `max` currently-held (row,col) pairs into rows/cols, returns

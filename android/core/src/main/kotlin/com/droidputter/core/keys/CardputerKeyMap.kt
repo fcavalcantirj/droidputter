@@ -16,10 +16,12 @@ package com.droidputter.core.keys
  * enter/space) matches docs/PROTOCOL.md exactly.
  */
 object CardputerKeyMap {
-    data class Key(val row: Int, val col: Int, val legend: String, val shiftedLegend: String)
+    /** [fnLegend] is what the physical Cardputer prints on the cap for the fn layer (arrows on ; . , /,
+     *  esc on backtick, del on backspace); the firmware only reports `fn` + the base key, apps decode it. */
+    data class Key(val row: Int, val col: Int, val legend: String, val shiftedLegend: String, val fnLegend: String? = null)
 
     val KEYS: List<Key> = listOf(
-        Key(0, 0, "`", "~"),
+        Key(0, 0, "`", "~", fnLegend = "esc"),
         Key(0, 1, "1", "!"),
         Key(0, 2, "2", "@"),
         Key(0, 3, "3", "#"),
@@ -32,7 +34,7 @@ object CardputerKeyMap {
         Key(0, 10, "0", ")"),
         Key(0, 11, "-", "_"),
         Key(0, 12, "=", "+"),
-        Key(0, 13, "backspace", "backspace"),
+        Key(0, 13, "backspace", "backspace", fnLegend = "del"),
         Key(1, 0, "tab", "tab"),
         Key(1, 1, "q", "Q"),
         Key(1, 2, "w", "W"),
@@ -58,7 +60,7 @@ object CardputerKeyMap {
         Key(2, 8, "j", "J"),
         Key(2, 9, "k", "K"),
         Key(2, 10, "l", "L"),
-        Key(2, 11, ";", ":"),
+        Key(2, 11, ";", ":", fnLegend = "\u2191"),
         Key(2, 12, "'", "\""),
         Key(2, 13, "enter", "enter"),
         Key(3, 0, "ctrl", "ctrl"),
@@ -71,9 +73,9 @@ object CardputerKeyMap {
         Key(3, 7, "b", "B"),
         Key(3, 8, "n", "N"),
         Key(3, 9, "m", "M"),
-        Key(3, 10, ",", "<"),
-        Key(3, 11, ".", ">"),
-        Key(3, 12, "/", "?"),
+        Key(3, 10, ",", "<", fnLegend = "\u2190"),
+        Key(3, 11, ".", ">", fnLegend = "\u2193"),
+        Key(3, 12, "/", "?", fnLegend = "\u2192"),
         Key(3, 13, "space", "space"),
     )
 

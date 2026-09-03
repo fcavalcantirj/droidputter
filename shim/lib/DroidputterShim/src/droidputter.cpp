@@ -7,6 +7,12 @@
 #ifdef ARDUINO
 #include <Arduino.h>
 #include <string.h>
+// Some apps silence their own logging by macro-redefining Serial to a null sink for every
+// translation unit (M5PORKCHOP: `-include src/core/logging.h`, `#define Serial PorkchopSerialSink`).
+// The link must keep the real HWCDC object (`extern HWCDC Serial` in arduino-esp32 2.0.17).
+#ifdef Serial
+#undef Serial
+#endif
 #include "hal/usb_serial_jtag_ll.h"
 #include "driver/periph_ctrl.h"
 #include "esp_system.h"

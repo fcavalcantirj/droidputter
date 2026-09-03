@@ -47,14 +47,24 @@ fun SoftKeyboard(
     val haptics = LocalHapticFeedback.current
     val rows = remember { CardputerKeyMap.KEYS.groupBy { it.row }.toSortedMap() }
 
-    androidx.compose.foundation.layout.Column(modifier = modifier.background(Color(0xFF1A1A1A)).padding(2.dp)) {
+    // Horizontal padding keeps the edge columns (backspace, \\, enter, space) out of MIUI's
+    // back-gesture zones, which swallowed edge taps (Enter never reached the app, 2026-09-03).
+    androidx.compose.foundation.layout.Column(
+        modifier = modifier.background(Color(0xFF1A1A1A)).padding(horizontal = 28.dp, vertical = 2.dp),
+    ) {
         rows.forEach { (_, keysInRow) ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 keysInRow.sortedBy { it.col }.forEach { key ->
                     val isFn = (key.row to key.col) == FN_POS
                     val isShift = (key.row to key.col) == SHIFT_POS
                     val latched = (isFn && fnLatched) || (isShift && shiftLatched)
-                    val legend = if (shiftLatched) key.shiftedLegend else key.legend
+                    // fn latched: show the fn-layer caps (arrows on ; . , /, esc, del) so the user can
+                    // find them -- the real Cardputer prints them on the keys (Felipe, 2026-09-03).
+                    val legend = when {
+                        fnLatched && key.fnLegend != null -> key.fnLegend!!
+                        shiftLatched -> key.shiftedLegend
+                        else -> key.legend
+                    }
                     KeyCap(
                         legend = legend,
                         latched = latched,

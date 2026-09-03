@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -75,7 +77,12 @@ private fun CatalogDetail(
     onShare: () -> Unit,
     onBack: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // Scrollable: in landscape the parts list pushes "Share to flasher" below the fold, where
+    // neither the D-pad nor a swipe could reach it (2026-09-03 14:11 on the Poco).
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Text(entry.name, style = MaterialTheme.typography.titleLarge)
         Text("Board: ${entry.board}")
         Text("Build env: ${entry.env}")

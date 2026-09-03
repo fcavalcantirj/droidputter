@@ -29,8 +29,8 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 505520,
-        "sha256": "9f96312499fc084f407984ef75f03422a5161e4e09c08f91581c353065f138dd"
+        "size": 506560,
+        "sha256": "44ec3bf1729deefe9134a7b1dfbe4a5c753c0fb03ee96f3aab7f13dda5f77ebb"
       }
     ]
   },
@@ -64,8 +64,8 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 450560,
-        "sha256": "ea7c24124fc2cb7915a6078d7a3387ac611359a8ebef10979a513a8372476958"
+        "size": 451808,
+        "sha256": "39a782c910cf7448ea5dbe77dc2ecce30edf64792ea5441e496c4a01129052ab"
       }
     ]
   },
@@ -99,8 +99,8 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 464080,
-        "sha256": "80d3a979b74d269825c886691dba73f2637e45a890119897ce9ac80a2588c313"
+        "size": 465344,
+        "sha256": "f255fc8ef5ab72d4bef199e1276caa2b4ff3ef42ecf0cf565206f2f081a2f3a1"
       }
     ]
   },
@@ -134,8 +134,253 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 510848,
-        "sha256": "fed47744a6f91753126cfc04d4b48bf571fdc2d557de8bc6c4b4099bce76e198"
+        "size": 512096,
+        "sha256": "04d5e89ffce222e30d8f5d1ce75f11ae42e441332a9689f9a80c03a482d72c12"
+      }
+    ]
+  },
+  {
+    "name": "pigtail",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Pigtail (BLE tracker/glasses detector, NimBLE) rebuilt against the shim via tools/overlay.py.",
+    "source_repo": "https://github.com/benbaker76/Pigtail.git",
+    "license": "MIT (benbaker76/Pigtail)",
+    "build_dir": "apps/pigtail/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "f84d99c91508f4fabe004360ac67110ad2a927798f6faacf497234edbf3d01fb"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1500880,
+        "sha256": "a827e30503f5aec3991cce9722a14ee42d76fcbccde425a130aff6ed4696b8d2"
+      }
+    ]
+  },
+  {
+    "name": "stellar-map",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "stellar-map (planetarium star map for the Cardputer ADV) rebuilt against the shim via tools/overlay.py.",
+    "source_repo": "https://github.com/wisnc/stellar-map.git",
+    "license": "none declared (wisnc/stellar-map)",
+    "build_dir": "apps/stellar-map/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1113008,
+        "sha256": "4c98d0dda241f1783da93d8ef5dacbaedb7efd0f3f55d3782f87c9f392f62979"
+      }
+    ]
+  },
+  {
+    "name": "m5porkchop",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "M5PORKCHOP (wardriving companion, NimBLE + GPS) rebuilt against the shim via tools/overlay.py.",
+    "source_repo": "https://github.com/0ct0sec/M5PORKCHOP.git",
+    "license": "MIT (0ct0sec/M5PORKCHOP)",
+    "build_dir": "apps/m5porkchop/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "f84d99c91508f4fabe004360ac67110ad2a927798f6faacf497234edbf3d01fb"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1832672,
+        "sha256": "704f25998000d62ee5b87a7b050ac91e924a1a039bb6ae9e83e323ecb9cafcfe"
+      }
+    ]
+  },
+  {
+    "name": "cardputer-iss-tracker",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "ISS tracker (SGP4 orbit, WiFi TLE fetch; credentials.h seeded from the repo example) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/adammelancon/cardputer-iss-tracker.git",
+    "license": "MIT (adammelancon/cardputer-iss-tracker)",
+    "build_dir": "apps/cardputer-iss-tracker/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1257040,
+        "sha256": "2adbaf338b04f239b156b13927e92df39405ac4c3143db08944013ffaa67126f"
+      }
+    ]
+  },
+  {
+    "name": "bluetooth-keyboard-mouse-emulator",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "BLE keyboard/mouse emulator (the Cardputer as a Bluetooth HID) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/geo-tp/Bluetooth-Keyboard-Mouse-Emulator.git",
+    "license": "MIT (geo-tp/Bluetooth-Keyboard-Mouse-Emulator)",
+    "build_dir": "apps/bluetooth-keyboard-mouse-emulator/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1115600,
+        "sha256": "57e1f050c3763b11bd08abaa609b4cf2f6ebe06be26877305324d67c15d6c3a9"
+      }
+    ]
+  },
+  {
+    "name": "m5cardputer-audio-stream-server",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Audio stream server (mic over WiFi) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/geo-tp/M5Cardputer-Audio-Stream-Server.git",
+    "license": "MIT (geo-tp/M5Cardputer-Audio-Stream-Server)",
+    "build_dir": "apps/m5cardputer-audio-stream-server/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 933888,
+        "sha256": "6101deef4b8dbc0667686137625fef2179f5cfa07b0b22c0fb4be5e63938d6d1"
+      }
+    ]
+  },
+  {
+    "name": "ultimate-remote",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Ultimate Remote (IR/BLE/WiFi remote, flash 98% of the 8 MB app partition) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/geo-tp/Ultimate-Remote.git",
+    "license": "NOASSERTION (geo-tp/Ultimate-Remote)",
+    "build_dir": "apps/ultimate-remote/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 3277552,
+        "sha256": "e05682c813127d430aea19d30eaa80dbc1ede7096eed5d73bc584b0c92c78584"
       }
     ]
   }

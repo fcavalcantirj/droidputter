@@ -16,3 +16,8 @@ apps/*/lib/M5Cardputer/
 __pycache__/
 *.pyc
 docs/img/*.mp4
+# tools/overlay.py shallow clones of catalog apps
+apps/_src/
+# link-repro build artifact + proof PNGs
+tools/link-repro/reenum
+tools/link-repro/*.png
