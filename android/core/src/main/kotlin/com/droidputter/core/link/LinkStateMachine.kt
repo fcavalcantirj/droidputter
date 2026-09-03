@@ -74,10 +74,15 @@ class LinkStateMachine(initialState: LinkState = LinkState.DETACHED) {
                 // Transport confirmed open; stay in OPENING until the ESP's HELLO arrives.
             }
 
-            is LinkEvent.HelloReceived -> if (state == LinkState.OPENING || state == LinkState.LINKED) {
+            is LinkEvent.HelloReceived -> if (state == LinkState.OPENING) {
+                // First HELLO on this link: go LINKED and ACK it exactly once. The ESP answers every
+                // HELLO_ACK with another HELLO (plus a full-frame resync), so ACKing while already
+                // LINKED would ping-pong forever.
                 state = LinkState.LINKED
                 missedPings = 0
                 actions += LinkAction.SEND_HELLO_ACK
+            } else if (state == LinkState.LINKED) {
+                missedPings = 0
             }
 
             is LinkEvent.PingTimeout -> if (state == LinkState.LINKED) {

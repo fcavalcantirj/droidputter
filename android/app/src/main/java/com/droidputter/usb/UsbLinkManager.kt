@@ -160,6 +160,14 @@ class UsbLinkManager(
         onTransportClosed()
     }
 
+    /** The activity decodes frames; a HELLO means the ESP is up on this link. Routed through here so
+     *  the published [LinkStatus] follows the state machine (OPENING -> LINKED), which is what
+     *  starts the foreground service that keeps the USB link alive through screen-off/Doze. */
+    fun onHelloReceived() {
+        dispatch(LinkEvent.HelloReceived)
+        emitStatus()
+    }
+
     private fun dispatch(event: LinkEvent) {
         stateMachine.handle(event).forEach(onAction)
     }
