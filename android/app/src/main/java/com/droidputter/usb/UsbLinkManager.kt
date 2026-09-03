@@ -74,7 +74,15 @@ class UsbLinkManager(
     private val attachReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             when (intent.action) {
-                UsbManager.ACTION_USB_DEVICE_ATTACHED -> findDevice()?.let { requestPermission(it.device) }
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> findDevice()?.let {
+                    // Drive the state machine too. Without DeviceAttached a re-plug after a physical
+                    // detach stays in RECONNECTING: PermissionGranted is ignored (needs
+                    // PERMISSION_PENDING), the port still opens, and the ESP's HELLO is ignored
+                    // (needs OPENING) -- linked-looking port, HELLO_ACK never sent, tee never on
+                    // (2026-09-03 13:35 [REAL], Pense-Bem back from the Mac; only force-stop relinked).
+                    dispatch(LinkEvent.DeviceAttached)
+                    requestPermission(it.device)
+                }
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
                     dispatch(LinkEvent.Detached)
                     closeTransport()
