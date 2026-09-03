@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.droidputter.catalog.CatalogRepository
 import com.droidputter.catalog.CatalogScreen
+import com.droidputter.flash.PhoneFlasher
 import com.droidputter.connection.ConnectionScreen
 import com.droidputter.core.catalog.CatalogEntry
 import com.droidputter.core.keys.AndroidKeyMap
@@ -96,6 +97,11 @@ class MainActivity : ComponentActivity() {
     private var showCatalogScreen: Boolean by mutableStateOf(false)
     private var showKeyboard: Boolean by mutableStateOf(true)
     private val catalogRepository: CatalogRepository by lazy { CatalogRepository(this) }
+    private var flashStatus: String? by mutableStateOf(null)
+    private var flashing: Boolean by mutableStateOf(false)
+    private val phoneFlasher: PhoneFlasher by lazy {
+        PhoneFlasher(this, linkManager, catalogRepository) { s -> runOnUiThread { flashStatus = s } }
+    }
 
     private var gpsStatus: GpsFeedStatus by mutableStateOf(
         GpsFeedStatus(active = false, lastSentence = null, lastSource = null, satellitesInUse = 0),
@@ -145,6 +151,9 @@ class MainActivity : ComponentActivity() {
                             binPartsAvailable = catalogRepository::hasBinParts,
                             onShare = ::shareCatalogEntry,
                             onClose = { showCatalogScreen = false },
+                            onFlash = ::flashCatalogEntry,
+                            flashStatus = flashStatus,
+                            flashing = flashing,
                         )
                     } else {
                         Column(Modifier.fillMaxSize()) {
@@ -322,6 +331,20 @@ class MainActivity : ComponentActivity() {
      * docs/FLASHING.md "Catalog hand-off") -- just a standard Android share sheet carrying the
      * bin parts as content:// streams plus the offsets as text, to whatever flasher the user
      * has installed (ESP32_Flasher, verified [REAL] in S4b). */
+    /** Phone-side flash of a catalog entry: the link stands down, the ESP is reset into its ROM
+     *  bootloader over DTR/RTS, every part is written and MD5-verified, then a hard reset boots it
+     *  and the normal attach path relinks. */
+    private fun flashCatalogEntry(entry: CatalogEntry) {
+        if (flashing) return
+        flashing = true
+        flashStatus = "starting"
+        lifecycleScope.launch {
+            val result = phoneFlasher.flash(entry)
+            flashing = false
+            result.onSuccess { flashStatus = "done: ${entry.name} flashed and verified" }
+        }
+    }
+
     private fun shareCatalogEntry(entry: CatalogEntry) {
         val intent = catalogRepository.buildShareIntent(entry)
         startActivity(Intent.createChooser(intent, "Flash ${entry.name} (${entry.env})"))

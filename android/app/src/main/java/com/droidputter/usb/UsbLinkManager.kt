@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import androidx.core.content.ContextCompat
 import com.droidputter.core.link.LinkAction
@@ -59,12 +60,42 @@ class UsbLinkManager(
     private var deviceName: String? = null
     private var permissionGranted: Boolean? = null
 
+    /** A raw USB session (the phone-side flasher) owns the device: the link path stands down and
+     *  every attach / permission result is handed to the client as an opened connection instead. */
+    interface RawDeviceClient {
+        fun onDeviceReady(driver: UsbSerialDriver, connection: UsbDeviceConnection)
+    }
+    private var rawClient: RawDeviceClient? = null
+
+    fun beginRawSession(client: RawDeviceClient) {
+        rawClient = client
+        dispatch(LinkEvent.Detached)   // LINKED -> RECONNECTING so the later DeviceAttached is accepted
+        closeTransport()
+        emitStatus()
+    }
+
+    /** Back to normal: re-probe the device (the freshly flashed app is enumerating) and relink. */
+    fun endRawSession() {
+        rawClient = null
+        reconnect()
+    }
+
+    fun openDevice(device: UsbDevice): UsbDeviceConnection? = usbManager.openDevice(device)
+
+    private fun handOverRaw(client: RawDeviceClient, device: UsbDevice?) {
+        val driver = (device?.let { prober.probeDevice(it) ?: defaultProber.probeDevice(it) }) ?: findDevice() ?: return
+        if (!usbManager.hasPermission(driver.device)) { requestPermission(driver.device); return }
+        val connection = usbManager.openDevice(driver.device) ?: return
+        client.onDeviceReady(driver, connection)
+    }
+
     private val permissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             if (intent.action != ACTION_USB_PERMISSION) return
             val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
             val device = intent.getParcelableExtraCompat<UsbDevice>(UsbManager.EXTRA_DEVICE)
             permissionGranted = granted
+            rawClient?.let { raw -> if (granted) handOverRaw(raw, device); emitStatus(); return }
             dispatch(if (granted) LinkEvent.PermissionGranted else LinkEvent.PermissionDenied)
             if (granted && device != null) open(device)
             emitStatus()
@@ -74,7 +105,7 @@ class UsbLinkManager(
     private val attachReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             when (intent.action) {
-                UsbManager.ACTION_USB_DEVICE_ATTACHED -> findDevice()?.let {
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> rawClient?.let { raw -> handOverRaw(raw, null); emitStatus(); return } ?: findDevice()?.let {
                     // Drive the state machine too. Without DeviceAttached a re-plug after a physical
                     // detach stays in RECONNECTING: PermissionGranted is ignored (needs
                     // PERMISSION_PENDING), the port still opens, and the ESP's HELLO is ignored
@@ -84,6 +115,7 @@ class UsbLinkManager(
                     requestPermission(it.device)
                 }
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                    if (rawClient != null) return   // the flasher expects the reset's re-enumeration
                     dispatch(LinkEvent.Detached)
                     closeTransport()
                 }
@@ -137,7 +169,7 @@ class UsbLinkManager(
         }.onFailure { android.util.Log.w("Droidputter", "reconnect failed: ${it.message}") }
     }
 
-    private fun findDevice(): UsbSerialDriver? =
+    fun findDevice(): UsbSerialDriver? =
         usbManager.deviceList.values.firstNotNullOfOrNull { device ->
             prober.probeDevice(device) ?: defaultProber.probeDevice(device)
         }

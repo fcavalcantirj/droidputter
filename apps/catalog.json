@@ -143,7 +143,7 @@
     "name": "pigtail",
     "board": "m5stack-stamps3",
     "env": "m5cardputer",
-    "description": "Pigtail (BLE tracker/glasses detector, NimBLE) rebuilt against the shim via tools/overlay.py.",
+    "description": "Pigtail (BLE tracker/glasses detector, NimBLE) rebuilt via tools/overlay.py. KNOWN: reboot-loops on the Cardputer ADV (interrupt WDT at boot, 2026-09-03) -- flashes fine, does not run yet.",
     "source_repo": "https://github.com/benbaker76/Pigtail.git",
     "license": "MIT (benbaker76/Pigtail)",
     "build_dir": "apps/pigtail/.pio/build/m5cardputer",

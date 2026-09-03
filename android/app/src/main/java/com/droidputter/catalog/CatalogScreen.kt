@@ -36,6 +36,9 @@ fun CatalogScreen(
     onShare: (CatalogEntry) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onFlash: (CatalogEntry) -> Unit = {},
+    flashStatus: String? = null,
+    flashing: Boolean = false,
 ) {
     var selected: CatalogEntry? by remember { mutableStateOf(null) }
     val current = selected
@@ -65,6 +68,9 @@ fun CatalogScreen(
                 binPartsAvailable = binPartsAvailable(current),
                 onShare = { onShare(current) },
                 onBack = { selected = null },
+                onFlash = { onFlash(current) },
+                flashStatus = flashStatus,
+                flashing = flashing,
             )
         }
     }
@@ -76,6 +82,9 @@ private fun CatalogDetail(
     binPartsAvailable: Boolean,
     onShare: () -> Unit,
     onBack: () -> Unit,
+    onFlash: () -> Unit = {},
+    flashStatus: String? = null,
+    flashing: Boolean = false,
 ) {
     // Scrollable: in landscape the parts list pushes "Share to flasher" below the fold, where
     // neither the D-pad nor a swipe could reach it (2026-09-03 14:11 on the Poco).
@@ -98,7 +107,12 @@ private fun CatalogDetail(
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         if (binPartsAvailable) {
-            Button(onClick = onShare, modifier = Modifier.fillMaxWidth()) {
+            // The phone flashes the ESP itself (esptool ROM protocol over the same OTG port).
+            Button(onClick = onFlash, enabled = !flashing, modifier = Modifier.fillMaxWidth()) {
+                Text(if (flashing) "Flashing..." else "Flash from phone")
+            }
+            if (flashStatus != null) Text(flashStatus, style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = onShare, modifier = Modifier.fillMaxWidth()) {
                 Text("Share to flasher")
             }
         } else {

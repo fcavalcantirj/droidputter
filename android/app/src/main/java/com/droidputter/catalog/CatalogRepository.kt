@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import com.droidputter.core.catalog.CatalogEntry
 import com.droidputter.core.catalog.assetDirName
+import com.droidputter.core.esptool.FlashImage
 import com.droidputter.core.catalog.catalogShareText
 import com.droidputter.core.catalog.parseCatalog
 import java.io.File
@@ -38,6 +39,16 @@ class CatalogRepository(private val context: Context) {
     /** Builds the share-sheet Intent: the offsets text blob (catalogShareText) plus a
      * content:// stream per bin part, copied fresh into cache so FileProvider can grant the
      * receiving flasher app read access without exposing the app's asset storage directly. */
+    /** The bundled bin parts as in-memory images for the phone-side flasher, in flash order. */
+    fun loadImages(entry: CatalogEntry): List<FlashImage> {
+        val assetDir = "catalog/${entry.assetDirName}"
+        if (!hasBinParts(entry)) return emptyList()
+        return entry.parts.sortedBy { it.offset.removePrefix("0x").toLong(16) }.map { part ->
+            val bytes = context.assets.open("$assetDir/${part.file}").use { it.readBytes() }
+            FlashImage(part.file, part.offset.removePrefix("0x").toLong(16), bytes)
+        }
+    }
+
     fun buildShareIntent(entry: CatalogEntry): Intent {
         val assetDir = "catalog/${entry.assetDirName}"
         val destDir = File(context.cacheDir, "$SHARE_CACHE_DIR/${entry.assetDirName}").apply { mkdirs() }
