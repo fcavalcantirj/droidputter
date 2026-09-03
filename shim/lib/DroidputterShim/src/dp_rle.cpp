@@ -32,3 +32,18 @@ size_t dp_rle_decode(const uint8_t* in, size_t inLen, uint16_t* px, size_t cap) 
 }
 
 }  // namespace dp
+
+size_t dp::dp_rle_encode_be(const uint8_t* px, size_t n, uint8_t* out, size_t cap) {
+  if (!n) return 0;
+  size_t o = 0, i = 0;
+  while (i < n) {
+    uint8_t c0 = px[i * 2], c1 = px[i * 2 + 1];
+    size_t run = 1;
+    while (i + run < n && run < 255 && px[(i + run) * 2] == c0 && px[(i + run) * 2 + 1] == c1) run++;
+    if (o + 3 > cap) return 0;
+    out[o++] = (uint8_t)run; out[o++] = c0; out[o++] = c1;
+    i += run;
+    if (o >= n * 2) return 0;   // not shorter than raw
+  }
+  return o;
+}

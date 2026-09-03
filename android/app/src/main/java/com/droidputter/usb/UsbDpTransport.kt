@@ -19,6 +19,7 @@ class UsbDpTransport(
 ) : DpTransport {
     private val ioExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "dp-usb-reader") }
     private var ioManager: SerialInputOutputManager? = null
+    private var rawChunksLogged = 0
 
     init {
         port.open(connection)
@@ -37,6 +38,17 @@ class UsbDpTransport(
             port,
             object : SerialInputOutputManager.Listener {
                 override fun onNewData(data: ByteArray) {
+                    // Raw visibility for link triage: the first chunks after open, hex + ASCII, so
+                    // an ESP boot banner ("rst:0x.. boot:0x.."), a panic ("Guru Meditation") or the
+                    // ROM's "waiting for download" is readable in logcat even though the Framer
+                    // discards anything that is not a DP frame.
+                    if (rawChunksLogged < RAW_LOG_CHUNKS) {
+                        rawChunksLogged++
+                        val head = data.copyOf(minOf(data.size, RAW_LOG_BYTES))
+                        val hex = head.joinToString(" ") { "%02x".format(it) }
+                        val ascii = String(head.map { b -> if (b in 0x20..0x7e) b.toInt().toChar() else '.' }.toCharArray())
+                        android.util.Log.d("Droidputter", "raw#$rawChunksLogged ${data.size}B: $hex | $ascii")
+                    }
                     trySend(data)
                 }
 
@@ -61,5 +73,7 @@ class UsbDpTransport(
     private companion object {
         const val BAUD_RATE = 115200
         const val WRITE_TIMEOUT_MS = 200
+        const val RAW_LOG_CHUNKS = 40
+        const val RAW_LOG_BYTES = 96
     }
 }

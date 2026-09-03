@@ -35,6 +35,7 @@ fun ConnectionScreen(
     onReconnect: () -> Unit,
     onResendHelloAck: () -> Unit,
     onToggleGps: () -> Unit,
+    onProbeRom: () -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -80,6 +81,9 @@ fun ConnectionScreen(
         }
         OutlinedButton(onClick = onToggleGps, modifier = Modifier.fillMaxWidth()) {
             Text(if (gpsStatus.active) "Stop GPS feed" else "Start GPS feed")
+        }
+        OutlinedButton(onClick = onProbeRom, modifier = Modifier.fillMaxWidth()) {
+            Text("Probe ROM bootloader")
         }
         OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
             Text("Back")

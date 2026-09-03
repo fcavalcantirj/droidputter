@@ -72,6 +72,8 @@ private const val DEMO_FIXTURE_ASSET_DIR = "fixtures/pense-bem"
 private const val PROBE_INTERVAL_MS = 1_000L
 private const val PROBE_ATTEMPTS = 30
 private const val RECONNECT_DELAY_MS = 1_500L
+// esptool SYNC (cmd 0x08, 36 B: 07 07 12 20 + 32 x 0x55), SLIP-framed. Answered only by the ROM bootloader.
+private val ESPTOOL_SYNC: ByteArray = byteArrayOf(0xC0.toByte(), 0x00, 0x08, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x07, 0x12, 0x20) + ByteArray(32) { 0x55 } + byteArrayOf(0xC0.toByte())
 
 // Dumb shell: rendering lives in render/ (Bitmap + Compose canvas), protocol decoding in
 // :core (Framer/DpMessage/ScreenModel) -- this class only forwards bytes between whichever
@@ -91,6 +93,7 @@ class MainActivity : ComponentActivity() {
     private var linkRates: LinkRates by mutableStateOf(LinkRates(0.0, 0.0, 0))
     private var showConnectionScreen: Boolean by mutableStateOf(false)
     private var showCatalogScreen: Boolean by mutableStateOf(false)
+    private var showKeyboard: Boolean by mutableStateOf(true)
     private val catalogRepository: CatalogRepository by lazy { CatalogRepository(this) }
 
     private var gpsStatus: GpsFeedStatus by mutableStateOf(
@@ -132,6 +135,7 @@ class MainActivity : ComponentActivity() {
                             onReconnect = { linkManager.reconnect() },
                             onResendHelloAck = ::sendHelloAckNow,
                             onToggleGps = ::toggleGpsFeed,
+                            onProbeRom = ::probeRomBootloader,
                             onClose = { showConnectionScreen = false },
                         )
                     } else if (showCatalogScreen) {
@@ -167,8 +171,17 @@ class MainActivity : ComponentActivity() {
                                         Text("Replay fixture")
                                     }
                                 }
+                                // Hide the soft keyboard for a full-height mirror (8x on the Poco).
+                                Button(
+                                    onClick = { showKeyboard = !showKeyboard },
+                                    modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
+                                ) {
+                                    Text(if (showKeyboard) "Hide keys" else "Keys")
+                                }
                             }
-                            SoftKeyboard(onKey = ::sendKey, modifier = Modifier.fillMaxWidth())
+                            if (showKeyboard) {
+                                SoftKeyboard(onKey = ::sendKey, modifier = Modifier.fillMaxWidth())
+                            }
                         }
                     }
                 }
@@ -210,7 +223,12 @@ class MainActivity : ComponentActivity() {
                     try {
                         opened.incoming.collect { bytes ->
                             framer.feed(bytes).forEach { frame ->
-                                val message = decodeDpMessage(frame) ?: return@forEach
+                                val message = decodeDpMessage(frame) ?: run {
+                                    // Unknown types are ignored by the renderer; LOG (0x07) is the
+                                    // shim's link-watchdog report, worth seeing in logcat.
+                                    Log.d(TAG, "frame type 0x%02x len %d: %s".format(frame.type, frame.payload.size, String(frame.payload)))
+                                    return@forEach
+                                }
                                 if (message is DpMessage.Hello) {
                                     linkManager.onHelloReceived()
                                 }
@@ -312,6 +330,15 @@ class MainActivity : ComponentActivity() {
      * turn a Cardputer (row, col, down) into a KEY frame on whatever transport is open. */
     private fun sendKey(row: Int, col: Int, down: Boolean) {
         transport?.write(encodeKey(row, col, down))
+    }
+
+    /** Link triage: an ESP32-S3 sitting in ROM download mode enumerates exactly like the running
+     * app but never sends a frame. The ROM does answer esptool's SLIP SYNC command on this same
+     * CDC port, so writing one and watching UsbDpTransport's raw log tells ROM mode apart from a
+     * hung app without unplugging (which power-cycles the Cardputer ADV and destroys the evidence). */
+    private fun probeRomBootloader() {
+        Log.d(TAG, "probe: esptool SYNC written")
+        transport?.write(ESPTOOL_SYNC)
     }
 
     /** The resync action (task's "Send HELLO_ACK again"): the ESP repaints the whole screen on

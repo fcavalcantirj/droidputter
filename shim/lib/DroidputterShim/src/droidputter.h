@@ -8,7 +8,7 @@ namespace lgfx { inline namespace v1 { struct pixelcopy_t; } }
 class Stream;  // arduino-esp32 2.x: global namespace, declared in Stream.h
 #endif
 namespace dp {
-enum : uint8_t { HELLO = 0x01, FILL = 0x02, RECT = 0x03, RECT_RLE = 0x04, STATS = 0x05, PING = 0x06,
+enum : uint8_t { HELLO = 0x01, FILL = 0x02, RECT = 0x03, RECT_RLE = 0x04, STATS = 0x05, PING = 0x06, LOG = 0x07,
                  KEY = 0x81, GPS_NMEA = 0x82, PING_IN = 0x83, HELLO_ACK = 0x84 };
 void begin(const char* app, uint16_t w, uint16_t h, uint8_t rot);   // idempotent
 void window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye);
@@ -20,6 +20,8 @@ void pixelsConv(lgfx::v1::pixelcopy_t* param, uint32_t npixels);    // convert p
 void poll();                                                        // parse phone->ESP frames (keys, GPS_NMEA); apps with no M5Cardputer Keyboard_Class (e.g. gps-demo) must call this themselves
 // injected keys (row,col) currently held; returns count, fills out[max]
 uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max);
+// link triage counters (TX watchdog): kicks, CDC re-inits, ms since the last frame left the chip, ms since the last inbound frame
+void linkDebug(uint32_t* kicks, uint32_t* reinits, uint32_t* tx_mute_ms, uint32_t* rx_age_ms);
 }
 
 #ifdef ARDUINO

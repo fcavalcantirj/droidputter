@@ -23,6 +23,8 @@ extern uint32_t write_budget_ms;  // usb_write()'s blocking budget; raised only 
 // pushes them as one RECT/RECT_RLE, so a phone that HELLO_ACKs after the app has
 // already drawn its screen still sees it. Called from droidputter.cpp on HELLO_ACK.
 void resync();
+// Periodic flush of the coalesced shadow (dp_display.cpp); called from dp::poll() every loop.
+void flushTick();
 
 uint8_t crc8(uint8_t c, const uint8_t* p, size_t n);
 void put16(uint8_t* p, uint16_t v);

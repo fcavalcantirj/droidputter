@@ -14,6 +14,10 @@ namespace dp {
 // n*2-byte pixel data (caller should send RECT instead) or would not fit in cap.
 size_t dp_rle_encode(const uint16_t* px, size_t n, uint8_t* out, size_t cap);
 
+// Same encoder over pixels already in wire order (2 big-endian bytes each), e.g. the shadow
+// framebuffer (dp_shadow.h): no conversion buffer needed. Same return contract.
+size_t dp_rle_encode_be(const uint8_t* px_be, size_t n, uint8_t* out, size_t cap);
+
 // Decodes a run stream produced by dp_rle_encode back into up to `cap` pixels.
 // Returns the number of pixels decoded, or 0 on a malformed stream (a run's byte
 // triplet is truncated, a zero-length input, or more pixels than `cap` would decode).

@@ -7,9 +7,15 @@
 #ifdef ARDUINO
 #include <Arduino.h>
 #include <string.h>
+#include "hal/usb_serial_jtag_ll.h"
+#include "driver/periph_ctrl.h"
+#include "esp_system.h"
 namespace dp {
 namespace internal {
 bool started = false;
+uint32_t last_tx_ok_ms = 0;   // millis() of the last frame that fully entered the HWCDC ring
+uint32_t last_rx_ms = 0;      // millis() of the last valid inbound frame (the host is alive and talking)
+uint32_t cdc_kicks = 0, cdc_reinits = 0;
 bool linked = false;
 uint16_t scr_w = 240, scr_h = 135;
 uint8_t scr_rot = 1;
@@ -22,6 +28,10 @@ bool hasSpace(size_t n) { return (size_t)Serial.availableForWrite() >= n; }
 #endif
 uint32_t write_budget_ms = 40;
 static bool usb_write(const uint8_t* p, size_t n) {
+  // A full ring means the host is not draining (dead link, suspended port): waiting the write budget
+  // here turned a dead link into a 40 ms stall per frame and a ~60 s screen redraw (2026-09-03 [REAL]).
+  // Callers pre-check hasSpace(); if the ring is full anyway, drop now and let the watchdog recover.
+  if (Serial.availableForWrite() <= 0) return false;
   uint32_t t0 = millis();
   while (n) {
     int sp = Serial.availableForWrite();
@@ -35,15 +45,18 @@ static bool usb_write(const uint8_t* p, size_t n) {
 // frame = header(5) + payload chunks; payload may be passed in up to 2 pieces
 void send(uint8_t type, const uint8_t* a, size_t na, const uint8_t* b, size_t nb) {
   if (!started) return;
-  size_t len = na + nb; uint8_t hdr[5] = { 0xD7, 0x50, type, (uint8_t)(len & 0xFF), (uint8_t)(len >> 8) };
+  size_t len = na + nb;
+  if (!hasSpace(6 + len)) { st_dropped++; return; }   // whole frame or nothing: no half frames on the wire
+  uint8_t hdr[5] = { 0xD7, 0x50, type, (uint8_t)(len & 0xFF), (uint8_t)(len >> 8) };
   uint8_t c = crc8(0, hdr + 2, 3); c = crc8(c, a, na); if (b) c = crc8(c, b, nb);
   bool ok = usb_write(hdr, 5) && usb_write(a, na) && (!b || usb_write(b, nb)) && usb_write(&c, 1);
-  if (ok) { st_frames++; st_bytes += 6 + len; } else st_dropped++;
+  if (ok) { st_frames++; st_bytes += 6 + len; last_tx_ok_ms = millis(); } else st_dropped++;
 }
 }  // namespace internal
 
 static char app_name[32] = "app";
 static uint32_t last_stats, last_hello;
+static RTC_NOINIT_ATTR uint32_t wd_boot_marker;   // survives esp_restart: 0xDEAD0000 | rung that rebooted us
 using internal::send;
 using internal::put16;
 using internal::crc8;
@@ -66,10 +79,16 @@ void begin(const char* app, uint16_t w, uint16_t h, uint8_t rot) {
   // shim, not the app, owns making the tee transparently work.
   Serial.begin(115200);
   Serial.setTxBufferSize(DROIDPUTTER_TXBUF); Serial.setTxTimeoutMs(20); sendHello();
+  // Boot report (LOG 0x07): why we reset and whether our own watchdog did it -- readable by any receiver.
+  uint32_t marker = wd_boot_marker; wd_boot_marker = 0;
+  char msg[48]; int k = snprintf(msg, sizeof msg, "boot rst=%d wd=%lu", (int)esp_reset_reason(),
+                                 (unsigned long)((marker & 0xFFFF0000u) == 0xDEAD0000u ? (marker & 0xFFFF) : 0));
+  send(LOG, (const uint8_t*)msg, k > 0 ? (size_t)k : 0);
 }
 // ---- phone -> ESP ----
 static uint8_t rx[128]; static uint8_t rxn;
 static void onFrame(uint8_t type, const uint8_t* p, uint16_t n) {
+  internal::last_rx_ms = millis();
   if (type == KEY && n >= 3) { dp_keys_push(p[0], p[1], p[2]); }
   else if (type == GPS_NMEA) { dp_gps_push(p, n); }
   else if (type == HELLO_ACK) { internal::linked = true; sendHello(); internal::resync();
@@ -81,6 +100,62 @@ static void onFrame(uint8_t type, const uint8_t* p, uint16_t n) {
   // PING_IN also resends HELLO (not just PONG): a phone that connects late and
   // only knows to probe (not yet ack its screen size) still learns the geometry.
   else if (type == PING_IN) { send(PING, nullptr, 0); sendHello(); }
+}
+// TX watchdog. Reproduced on the Mac 2026-09-03 [REAL]: a USB suspend of ~30 s (no SOF, VBUS kept --
+// what an Android host does to an idle/dropped OTG port) while the tee streams and NMEA floods in leaves
+// arduino-esp32 2.0.17's HWCDC mute after resume: SOF is back (isPlugged), but `connected` stays false,
+// the TX ring is full, and HWCDC only re-arms its drain inside write() -- which nobody calls while the
+// ring is full. Inbound frames still arrive (the ISR drains the RX FIFO). Symptom on the phone:
+// enumerated, silent, PING_IN unanswered, until a power-cycle. Remedy ladder, driven only when the host
+// is provably talking to us (a valid inbound frame in the last 2 s) and no frame has entered the ring
+// for 2 s: (1) re-arm the drain (FIFO flush + IN_EMPTY interrupt + one real Serial.write()),
+// (2) 5 s: HWCDC end()/begin() (also pulls D+/D- low, so the host re-enumerates us and the phone app
+// re-links on its attach intent), (3) 10 s: reset the USB Serial/JTAG peripheral and begin() again,
+// (4) 15 s: esp_restart(). Once frames flow again a LOG frame reports the rung that healed it.
+static uint8_t wd_rung = 0;          // last rung fired for the current mute episode
+static uint32_t wd_last_fire_ms = 0;
+static uint32_t wd_episode_ms = 0;   // when the host was first seen talking while TX was already dead
+static void cdcBegin() {
+  Serial.begin(115200);
+  Serial.setTxBufferSize(DROIDPUTTER_TXBUF); Serial.setTxTimeoutMs(20);
+}
+static void txWatchdog(uint32_t now) {
+  using namespace internal;
+  if (!last_tx_ok_ms || !last_rx_ms) return;
+  if (now - last_tx_ok_ms < 2000) {                      // TX alive
+    if (wd_rung) {                                        // ...again: report which rung did it
+      char msg[40]; int k = snprintf(msg, sizeof msg, "cdc-recovered rung=%u", (unsigned)wd_rung);
+      wd_rung = 0;
+      send(LOG, (const uint8_t*)msg, k > 0 ? (size_t)k : 0);
+      sendHello(); if (linked) resync();
+    }
+    wd_episode_ms = 0;
+    return;
+  }
+  if (now - last_rx_ms > 2000) { wd_episode_ms = 0; return; }   // host silent too: nothing to recover
+  // TX dead while the host talks. Escalate on time since the host came back, not since TX died: a 30 s
+  // suspend must not jump straight to the reboot rung the moment the host resumes.
+  if (!wd_episode_ms) wd_episode_ms = now;
+  uint32_t mute = now - wd_episode_ms;
+  if (mute < 2000) return;
+  if (now - wd_last_fire_ms < 1000) return;               // one action per second at most
+  wd_last_fire_ms = now;
+  if (mute < 5000) {
+    if (wd_rung < 1) wd_rung = 1;
+    cdc_kicks++;
+    usb_serial_jtag_ll_txfifo_flush();
+    usb_serial_jtag_ll_ena_intr_mask(USB_SERIAL_JTAG_INTR_SERIAL_IN_EMPTY);
+    static const uint8_t ping[6] = { 0xD7, 0x50, PING, 0, 0, 0x00 };  // crc8 over 06 00 00
+    uint8_t c = crc8(0, ping + 2, 3); uint8_t f[6]; memcpy(f, ping, 5); f[5] = c;
+    Serial.write(f, 6);                                     // forces HWCDC through write()'s re-arm path
+  } else if (mute < 10000) {
+    if (wd_rung < 2) { wd_rung = 2; cdc_reinits++; Serial.end(); delay(50); cdcBegin(); }
+  } else if (mute < 15000) {
+    if (wd_rung < 3) { wd_rung = 3; cdc_reinits++; Serial.end(); periph_module_reset(PERIPH_USB_MODULE); delay(50); cdcBegin(); }
+  } else {
+    wd_boot_marker = 0xDEAD0000u | 4u;
+    esp_restart();
+  }
 }
 void poll() {
   if (!internal::started) return;
@@ -97,8 +172,16 @@ void poll() {
     if (rxn >= sizeof rx) rxn = 0; }
   uint32_t now = millis();
   if (now - last_stats >= 1000) { last_stats = now; uint8_t s[16]; uint32_t v[4] = { internal::st_frames, internal::st_bytes, internal::st_dropped, (uint32_t)ESP.getFreeHeap() }; memcpy(s, v, 16); send(STATS, s, 16); }
+  txWatchdog(now);
+  internal::flushTick();
 }
 uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max) { return dp_keys_snapshot(rows, cols, max); }
+void linkDebug(uint32_t* kicks, uint32_t* reinits, uint32_t* tx_mute_ms, uint32_t* rx_age_ms) {
+  uint32_t now = millis();
+  if (kicks) *kicks = internal::cdc_kicks; if (reinits) *reinits = internal::cdc_reinits;
+  if (tx_mute_ms) *tx_mute_ms = internal::last_tx_ok_ms ? now - internal::last_tx_ok_ms : 0;
+  if (rx_age_ms) *rx_age_ms = internal::last_rx_ms ? now - internal::last_rx_ms : 0;
+}
 }  // namespace dp
 
 // Arduino Stream over dp_gps.h's ring (see droidputter.h: droidputter_gps()).

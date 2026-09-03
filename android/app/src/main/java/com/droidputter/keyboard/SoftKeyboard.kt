@@ -3,7 +3,7 @@ package com.droidputter.keyboard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droidputter.core.keys.CardputerKeyMap
@@ -32,9 +33,15 @@ private val SHIFT_POS = 2 to 1
  * release (matching a physical key). fn/shift can't be physically held by a tapping finger the
  * way they can on real hardware, so they're sticky here: a tap latches KEY down and keeps it
  * down (legends switch to their shifted form) until tapped again, which sends KEY up.
+ * Rows are a fixed [keyHeight] (not square keys): on a 2712 px-wide landscape phone square keys
+ * were 194 px tall and ate 64% of the screen, leaving the mirror at 2x.
  */
 @Composable
-fun SoftKeyboard(onKey: (row: Int, col: Int, down: Boolean) -> Unit, modifier: Modifier = Modifier) {
+fun SoftKeyboard(
+    onKey: (row: Int, col: Int, down: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    keyHeight: Dp = 34.dp,
+) {
     var fnLatched by remember { mutableStateOf(false) }
     var shiftLatched by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -51,7 +58,7 @@ fun SoftKeyboard(onKey: (row: Int, col: Int, down: Boolean) -> Unit, modifier: M
                     KeyCap(
                         legend = legend,
                         latched = latched,
-                        modifier = Modifier.weight(1f).aspectRatio(1f).pointerInput(key.row, key.col) {
+                        modifier = Modifier.weight(1f).height(keyHeight).pointerInput(key.row, key.col) {
                             detectTapGestures(
                                 onPress = {
                                     when {
@@ -94,7 +101,7 @@ private fun KeyCap(legend: String, latched: Boolean, modifier: Modifier = Modifi
         Text(
             text = legend,
             color = Color.White,
-            fontSize = 9.sp,
+            fontSize = 12.sp,
             maxLines = 1,
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.wrapContentHeight(),
