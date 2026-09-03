@@ -411,7 +411,7 @@
       "Keep the verified research findings, correct the wired-mode table (screen over USB = shim, proven in S2), and add the measured numbers from S2/S3/S5.",
       "Verify: `grep -c -i bruce SPEC.md` is lower than before the edit and the roadmap section names M1..M4 as above."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "docs",
