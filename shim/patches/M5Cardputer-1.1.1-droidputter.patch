@@ -1,7 +1,7 @@
 diff --color -ruN a/M5Cardputer/src/utility/Keyboard/Keyboard.cpp M5Cardputer/src/utility/Keyboard/Keyboard.cpp
 --- a/M5Cardputer/src/utility/Keyboard/Keyboard.cpp	2026-08-24 21:26:49
-+++ b/M5Cardputer/src/utility/Keyboard/Keyboard.cpp	2026-09-02 12:24:53
-@@ -51,10 +51,20 @@
++++ b/M5Cardputer/src/utility/Keyboard/Keyboard.cpp	2026-09-02 21:37:26
+@@ -51,12 +51,34 @@
      return ret;
  }
  
@@ -10,21 +10,36 @@ diff --color -ruN a/M5Cardputer/src/utility/Keyboard/Keyboard.cpp M5Cardputer/sr
  {
      if (_keyboard_reader) {
          _keyboard_reader->update();
-+    }
+     }
+-}
 +    dp::poll();
 +    if (_keyboard_reader) {
++        // Injected (phone) keys: mirror the shim's held-set into the reader's list.
++        // The ADV's TCA8418 reader is incremental (only touches the list on physical
++        // events), so entries we add must also be REMOVED by us on release.
++        static Point2D_t injected[16]; static uint8_t ninjected = 0;
 +        uint8_t r[16], c[16]; uint8_t n = dp::injectedKeys(r, c, 16);
 +        auto& kl = _keyboard_reader->mutableKeyList();
++        // 1) drop previously injected positions that are no longer held
++        for (uint8_t i = 0; i < ninjected; i++) {
++            bool still = false; for (uint8_t k = 0; k < n; k++) if (injected[i].x == c[k] && injected[i].y == r[k]) { still = true; break; }
++            if (!still) for (auto it = kl.begin(); it != kl.end(); ++it) if (it->x == injected[i].x && it->y == injected[i].y) { kl.erase(it); break; }
++        }
++        // 2) add held positions not present, and remember what we injected
++        ninjected = 0;
 +        for (uint8_t i = 0; i < n; i++) {
 +            bool dup = false; for (auto& k : kl) if (k.x == c[i] && k.y == r[i]) { dup = true; break; }
 +            if (!dup) { Point2D_t p; p.x = c[i]; p.y = r[i]; kl.push_back(p); }
++            if (ninjected < 16) { injected[ninjected].x = c[i]; injected[ninjected].y = r[i]; ninjected++; }
 +        }
-     }
- }
++    }
++        }
  
+ uint8_t Keyboard_Class::isPressed()
+ {
 diff --color -ruN a/M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h
 --- a/M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h	2026-08-24 21:26:49
-+++ b/M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h	2026-09-02 12:24:53
++++ b/M5Cardputer/src/utility/Keyboard/KeyboardReader/KeyboardReader.h	2026-09-02 21:26:40
 @@ -1,51 +1,52 @@
 -/*
 - * SPDX-FileCopyrightText: 2025 M5Stack Technology CO LTD
