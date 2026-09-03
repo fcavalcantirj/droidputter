@@ -393,7 +393,7 @@
       "`d=$(mktemp -d) && git clone <this repo> $d/dp && cd $d/dp/android && ./gradlew :core:test :app:assembleDebug && cd ../shim && pio test -e native && cd ../apps/pense-bem && pio run` — every command exits 0 (PlatformIO may download the platform; network is allowed for this gate).",
       "Verify: exit 0 for the whole chain."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "verification",
