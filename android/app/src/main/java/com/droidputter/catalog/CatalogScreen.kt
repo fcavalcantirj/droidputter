@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.droidputter.core.catalog.CatalogEntry
+import com.droidputter.core.catalog.VerdictSummary
 import com.droidputter.core.catalog.assetDirName
 
 /**
@@ -40,6 +41,9 @@ fun CatalogScreen(
     onFlash: (CatalogEntry) -> Unit = {},
     flashStatus: String? = null,
     flashing: Boolean = false,
+    summaryOf: (CatalogEntry) -> VerdictSummary? = { null },
+    onVerdict: (CatalogEntry, Boolean) -> Unit = { _, _ -> },
+    promptVerdictFor: CatalogEntry? = null,
 ) {
     var selected: CatalogEntry? by remember { mutableStateOf(null) }
     val current = selected
@@ -58,7 +62,7 @@ fun CatalogScreen(
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(entries) { entry ->
                         OutlinedButton(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
-                            Text("${entry.name} — ${entry.env} (${entry.board})")
+                            Text("${verdictMark(summaryOf(entry))} ${entry.name} — ${entry.env} (${entry.board})")
                         }
                     }
                 }
@@ -75,6 +79,9 @@ fun CatalogScreen(
                 onFlash = { onFlash(current) },
                 flashStatus = flashStatus,
                 flashing = flashing,
+                summary = summaryOf(current),
+                onVerdict = { works -> onVerdict(current, works) },
+                promptVerdict = promptVerdictFor?.let { it.name == current.name && it.env == current.env } ?: false,
             )
         }
     }
@@ -89,6 +96,9 @@ private fun CatalogDetail(
     onFlash: () -> Unit = {},
     flashStatus: String? = null,
     flashing: Boolean = false,
+    summary: VerdictSummary? = null,
+    onVerdict: (Boolean) -> Unit = {},
+    promptVerdict: Boolean = false,
 ) {
     // Scrollable: in landscape the parts list pushes "Share to flasher" below the fold, where
     // neither the D-pad nor a swipe could reach it (2026-09-03 14:11 on the Poco).
@@ -102,6 +112,14 @@ private fun CatalogDetail(
         Text(entry.description)
         Text("Source: ${entry.sourceRepo}")
         Text("License: ${entry.license}")
+        if (summary != null) {
+            Text(
+                "${verdictMark(summary)} ${summary.label}" +
+                    (if (summary.own) " (your report)" else if (summary.worksCount + summary.brokenCount > 0) " (${summary.worksCount} works / ${summary.brokenCount} broken)" else "") +
+                    (entry.shimCommit?.let { " · shim $it" } ?: ""),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         Text("Parts (asset dir: ${entry.assetDirName})", style = MaterialTheme.typography.titleMedium)
@@ -116,6 +134,13 @@ private fun CatalogDetail(
                 Text(if (flashing) "Flashing..." else "Flash from phone")
             }
             if (flashStatus != null) Text(flashStatus, style = MaterialTheme.typography.bodySmall)
+            // Community verdict for THIS firmware hash: stored on the phone, then opened as a prefilled
+            // GitHub issue so the repo's verdicts.json can carry it to every other user.
+            Text(if (promptVerdict) "Did it run? Tell everyone:" else "Report for this exact build:", style = MaterialTheme.typography.titleMedium)
+            androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onVerdict(true) }, modifier = Modifier.weight(1f)) { Text("Works") }
+                OutlinedButton(onClick = { onVerdict(false) }, modifier = Modifier.weight(1f).padding(start = 8.dp)) { Text("Broken") }
+            }
             OutlinedButton(onClick = onShare, modifier = Modifier.fillMaxWidth()) {
                 Text("Share to flasher")
             }
@@ -126,4 +151,11 @@ private fun CatalogDetail(
             Text("Back to list")
         }
     }
+}
+
+private fun verdictMark(summary: VerdictSummary?): String = when (summary?.status) {
+    VerdictSummary.Status.WORKS -> if (summary.sameVersion) "\u2705" else "\u2611"
+    VerdictSummary.Status.BROKEN -> if (summary.sameVersion) "\u274C" else "\u26A0"
+    VerdictSummary.Status.MIXED -> "\u26A0"
+    else -> "\u00B7"
 }

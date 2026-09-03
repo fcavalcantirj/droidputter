@@ -1,0 +1,35 @@
+[
+  {
+    "name": "stellar-map",
+    "env": "m5cardputer",
+    "firmware_sha256": "4c98d0dda241f1783da93d8ef5dacbaedb7efd0f3f55d3782f87c9f392f62979",
+    "shim_commit": "b278863",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "flashed from the phone 4x on 2026-09-03; setup screen + star map mirror, phone keys and arrows work; ~17 coherent fps",
+    "date": "2026-09-03",
+    "reporter": "fcavalcantirj"
+  },
+  {
+    "name": "m5-example",
+    "env": "m5cardputer",
+    "firmware_sha256": "f255fc8ef5ab72d4bef199e1276caa2b4ff3ef42ecf0cf565206f2f081a2f3a1",
+    "shim_commit": "b278863",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "flashed from the phone by Felipe; inputText example mirrors and takes phone keys",
+    "date": "2026-09-03",
+    "reporter": "fcavalcantirj"
+  },
+  {
+    "name": "pigtail",
+    "env": "m5cardputer",
+    "firmware_sha256": "a827e30503f5aec3991cce9722a14ee42d76fcbccde425a130aff6ed4696b8d2",
+    "shim_commit": "b278863",
+    "board": "cardputer-adv",
+    "result": "broken",
+    "note": "flashes and verifies, then reboot-loops: boot rst=5 (interrupt WDT), Guru Meditation 'Interrupt wdt timeout on CPU0' every 3 s",
+    "date": "2026-09-03",
+    "reporter": "fcavalcantirj"
+  }
+]

@@ -4,6 +4,8 @@
         android:name="android.hardware.usb.host"
         android:required="true" />
 
+    <!-- community verdicts: read apps/verdicts.json from GitHub (raw); nothing else goes online -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

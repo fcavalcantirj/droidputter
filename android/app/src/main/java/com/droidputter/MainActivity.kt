@@ -31,6 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.droidputter.catalog.CatalogRepository
 import com.droidputter.catalog.CatalogScreen
+import com.droidputter.catalog.VerdictRepository
+import com.droidputter.core.catalog.Verdict
+import com.droidputter.core.catalog.firmwareSha256
 import com.droidputter.flash.PhoneFlasher
 import com.droidputter.connection.ConnectionScreen
 import com.droidputter.core.catalog.CatalogEntry
@@ -74,6 +77,7 @@ private const val DEMO_FIXTURE_ASSET_DIR = "fixtures/pense-bem"
 private const val PROBE_INTERVAL_MS = 1_000L
 private const val PROBE_ATTEMPTS = 30
 private const val RECONNECT_DELAY_MS = 1_500L
+private const val OBSERVE_AFTER_FLASH_MS = 20_000L
 // esptool SYNC (cmd 0x08, 36 B: 07 07 12 20 + 32 x 0x55), SLIP-framed. Answered only by the ROM bootloader.
 private val ESPTOOL_SYNC: ByteArray = byteArrayOf(0xC0.toByte(), 0x00, 0x08, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x07, 0x12, 0x20) + ByteArray(32) { 0x55 } + byteArrayOf(0xC0.toByte())
 
@@ -99,6 +103,14 @@ class MainActivity : ComponentActivity() {
     private val catalogRepository: CatalogRepository by lazy { CatalogRepository(this) }
     private var flashStatus: String? by mutableStateOf(null)
     private var flashing: Boolean by mutableStateOf(false)
+    private val verdictRepository: VerdictRepository by lazy { VerdictRepository(this) }
+    private var verdictVersion: Int by mutableStateOf(0)   // bumped to recompose badges after a refresh/report
+    private var promptVerdictFor: CatalogEntry? by mutableStateOf(null)
+    private var boardName: String = "unknown"
+    // Automatic verdict after a phone flash: the link evidence decides (see observeAfterFlash).
+    @Volatile private var obsBootLogs = 0
+    @Volatile private var obsHello = false
+    @Volatile private var obsFrames = 0
     private val phoneFlasher: PhoneFlasher by lazy {
         PhoneFlasher(this, linkManager, catalogRepository) { s -> runOnUiThread { flashStatus = s } }
     }
@@ -154,6 +166,9 @@ class MainActivity : ComponentActivity() {
                             onFlash = ::flashCatalogEntry,
                             flashStatus = flashStatus,
                             flashing = flashing,
+                            summaryOf = { entry -> verdictVersion; verdictRepository.summarize(entry) },
+                            onVerdict = ::reportVerdict,
+                            promptVerdictFor = promptVerdictFor,
                         )
                     } else {
                         Column(Modifier.fillMaxSize()) {
@@ -166,7 +181,11 @@ class MainActivity : ComponentActivity() {
                                     Text(connectionStatus.state.name)
                                 }
                                 Button(
-                                    onClick = { showCatalogScreen = true },
+                                    onClick = {
+                                        showCatalogScreen = true
+                                        // live community verdicts (falls back to the cached/seed copy offline)
+                                        lifecycleScope.launch { if (verdictRepository.refresh()) verdictVersion++ }
+                                    },
                                     modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
                                 ) {
                                     Text("Catalog")
@@ -236,12 +255,17 @@ class MainActivity : ComponentActivity() {
                                 val message = decodeDpMessage(frame) ?: run {
                                     // Unknown types are ignored by the renderer; LOG (0x07) is the
                                     // shim's link-watchdog report, worth seeing in logcat.
-                                    Log.d(TAG, "frame type 0x%02x len %d: %s".format(frame.type, frame.payload.size, String(frame.payload)))
+                                    val text = String(frame.payload)
+                                    if (frame.type == 0x07 && text.startsWith("boot ")) obsBootLogs++
+                                    Log.d(TAG, "frame type 0x%02x len %d: %s".format(frame.type, frame.payload.size, text))
                                     return@forEach
                                 }
                                 if (message is DpMessage.Hello) {
+                                    boardName = message.board.ifBlank { "unknown" }
+                                    obsHello = true
                                     linkManager.onHelloReceived()
                                 }
+                                if (message is DpMessage.Rect || message is DpMessage.RectRle || message is DpMessage.Fill) obsFrames++
                                 if (message is DpMessage.Stats) {
                                     linkRates = statsTracker.onStats(
                                         message.frames,
@@ -341,8 +365,51 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val result = phoneFlasher.flash(entry)
             flashing = false
-            result.onSuccess { flashStatus = "done: ${entry.name} flashed and verified" }
+            result.onSuccess { flashStatus = "done: ${entry.name} flashed and verified"; observeAfterFlash(entry) }
         }
+    }
+
+    /**
+     * Automatic verdict (Felipe, 2026-09-03: "the successful report, and unsuccessful, should be
+     * automatic"): for 20 s after the hard reset, count the shim's boot reports, whether a HELLO
+     * arrived and whether draw frames flowed. One boot + HELLO + frames = works; three or more boots
+     * (a reboot loop like Pigtail's IWDT) or no HELLO = broken; anything else stays a question for the
+     * user. Stored locally at once; the GitHub submission still needs the user (the browser).
+     */
+    private fun observeAfterFlash(entry: CatalogEntry) {
+        obsBootLogs = 0; obsHello = false; obsFrames = 0
+        lifecycleScope.launch {
+            delay(OBSERVE_AFTER_FLASH_MS)
+            val boots = obsBootLogs; val hello = obsHello; val frames = obsFrames
+            Log.d(TAG, "auto-verdict ${entry.name}: boots=$boots hello=$hello frames=$frames")
+            when {
+                boots >= 3 || !hello -> autoVerdict(entry, works = false, "auto: boots=$boots hello=$hello frames=$frames")
+                boots <= 1 && frames > 0 -> autoVerdict(entry, works = true, "auto: linked, $frames frames in 20 s")
+                else -> { promptVerdictFor = entry; flashStatus = "flashed; unclear after 20 s (boots=$boots frames=$frames) -- Works or Broken?" }
+            }
+        }
+    }
+
+    private fun autoVerdict(entry: CatalogEntry, works: Boolean, note: String) {
+        verdictRepository.addLocal(makeVerdict(entry, works, note))
+        verdictVersion++
+        promptVerdictFor = null
+        flashStatus = "auto-verdict: ${if (works) "works" else "broken"} ($note). Tap Works/Broken to send it to GitHub."
+    }
+
+    private fun makeVerdict(entry: CatalogEntry, works: Boolean, note: String = "") = Verdict(
+        name = entry.name, env = entry.env, firmwareSha256 = entry.firmwareSha256, shimCommit = entry.shimCommit,
+        board = boardName, result = if (works) Verdict.RESULT_WORKS else Verdict.RESULT_BROKEN, note = note,
+        date = java.time.LocalDate.now().toString(),
+    )
+
+    /** Store this device's verdict for the entry's exact firmware and open the prefilled GitHub issue. */
+    private fun reportVerdict(entry: CatalogEntry, works: Boolean) {
+        val v = makeVerdict(entry, works)
+        verdictRepository.addLocal(v)
+        verdictVersion++
+        promptVerdictFor = null
+        runCatching { startActivity(verdictRepository.issueIntent(v)) }.onFailure { Log.w(TAG, "issue intent failed: ${it.message}") }
     }
 
     private fun shareCatalogEntry(entry: CatalogEntry) {

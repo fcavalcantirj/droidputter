@@ -81,8 +81,12 @@ val catalogAssetSources: List<CatalogAssetSource> = if (catalogJsonSrc.isFile) {
     emptyList()
 }
 
+val verdictsJsonSrc = rootProject.projectDir.parentFile.resolve("apps/verdicts.json")
+
 val copyCatalogManifest by tasks.registering(Copy::class) {
     from(catalogJsonSrc)
+    // Community verdicts: the app fetches the live file from GitHub; this copy is the offline seed.
+    if (verdictsJsonSrc.isFile) from(verdictsJsonSrc)
     into(layout.buildDirectory.dir("generated/catalogAssets/catalog"))
 }
 

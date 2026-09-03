@@ -24,6 +24,8 @@ data class CatalogEntry(
     val license: String,
     @SerialName("build_dir") val buildDir: String? = null,
     val parts: List<CatalogPart> = emptyList(),
+    /** Last commit that touched shim/ when the catalog was generated: part of a build's identity. */
+    @SerialName("shim_commit") val shimCommit: String? = null,
 )
 
 /** Where this entry's bin parts live as bundled Android assets, e.g. "pense-bem-m5cardputer". */
@@ -50,3 +52,7 @@ fun catalogShareText(entry: CatalogEntry): String = buildString {
         appendLine("  ${part.offset}\t${part.file}\t${part.size} B\tsha256 ${part.sha256}")
     }
 }
+
+/** The firmware.bin hash: what a community verdict is tied to ("" when the entry has no firmware part). */
+val CatalogEntry.firmwareSha256: String
+    get() = parts.firstOrNull { it.file == "firmware.bin" }?.sha256 ?: ""

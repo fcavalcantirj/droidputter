@@ -215,6 +215,17 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
+def shim_commit() -> str:
+    """Last commit touching shim/ -- a build's identity together with its firmware sha256; stable until
+    the shim changes (a plain HEAD would churn the catalog on every commit)."""
+    import subprocess
+    r = subprocess.run(["git", "log", "-1", "--format=%h", "--", "shim/"], cwd=REPO_ROOT, capture_output=True, text=True)
+    return r.stdout.strip() or "unknown"
+
+
+SHIM_COMMIT = shim_commit()
+
+
 def build_entry(app: dict) -> dict:
     build_dir = REPO_ROOT / app["build_dir"]
     parts = []
@@ -239,6 +250,7 @@ def build_entry(app: dict) -> dict:
         "license": app["license"],
         "build_dir": app["build_dir"],
         "parts": parts,
+        "shim_commit": SHIM_COMMIT,
     }
 
 
