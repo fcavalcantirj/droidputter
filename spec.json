@@ -375,7 +375,7 @@
       "Hardware clause per board; C5 caveats from INVENTORY: J5 jumper bridged with a cap, native USB port (not the CP2102N UART port), esptool >= 5.3.0 at ~/Library/Arduino15/packages/esp32/tools/esptool_py/5.3.0/esptool.",
       "Verify: the chosen headless build exits 0 and, on hardware, the Mac receiver shows the example UI from a board with no screen ([REAL] line or UAT)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "verification",
