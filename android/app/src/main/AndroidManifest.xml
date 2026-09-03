@@ -4,6 +4,10 @@
         android:name="android.hardware.usb.host"
         android:required="true" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:label="Droidputter"
         android:theme="@style/Theme.Droidputter">
@@ -23,5 +27,12 @@
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/device_filter" />
         </activity>
+
+        <!-- Persistent notification while the USB link is up (task: connection screen), so the
+             link survives screen-off; started/stopped from MainActivity off LinkState.LINKED. -->
+        <service
+            android:name=".link.LinkForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

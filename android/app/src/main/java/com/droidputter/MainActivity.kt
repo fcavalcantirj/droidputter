@@ -1,10 +1,15 @@
 package com.droidputter
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,16 +19,23 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.droidputter.connection.ConnectionScreen
 import com.droidputter.core.keys.AndroidKeyMap
 import com.droidputter.core.keys.encodeKey
 import com.droidputter.core.link.LinkAction
 import com.droidputter.core.link.LinkEvent
+import com.droidputter.core.link.LinkRates
+import com.droidputter.core.link.LinkState
 import com.droidputter.core.link.LinkStateMachine
+import com.droidputter.core.link.LinkStatsTracker
 import com.droidputter.core.link.encodeHelloAck
 import com.droidputter.core.link.encodePingIn
 import com.droidputter.core.protocol.DpMessage
@@ -31,8 +43,10 @@ import com.droidputter.core.protocol.Framer
 import com.droidputter.core.protocol.decodeDpMessage
 import com.droidputter.core.transport.FixtureTransport
 import com.droidputter.keyboard.SoftKeyboard
+import com.droidputter.link.LinkForegroundService
 import com.droidputter.render.DroidputterScreen
 import com.droidputter.render.ScreenController
+import com.droidputter.usb.LinkStatus
 import com.droidputter.usb.UsbDpTransport
 import com.droidputter.usb.UsbLinkManager
 import java.io.File
@@ -51,27 +65,60 @@ private const val DEMO_FIXTURE_ASSET_DIR = "fixtures/pense-bem"
 class MainActivity : ComponentActivity() {
     private val stateMachine = LinkStateMachine()
     private val screenController = ScreenController()
+    private val statsTracker = LinkStatsTracker()
     private lateinit var linkManager: UsbLinkManager
     private var transport: UsbDpTransport? = null
     private var demoJob: Job? = null
 
+    private var connectionStatus: LinkStatus by mutableStateOf(
+        LinkStatus(LinkState.DETACHED, null, null, 0, emptyList()),
+    )
+    private var linkRates: LinkRates by mutableStateOf(LinkRates(0.0, 0.0, 0))
+    private var showConnectionScreen: Boolean by mutableStateOf(false)
+
+    private val requestNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* denial just hides the notification */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 13+ needs this granted at runtime for LinkForegroundService's notification to
+        // actually show; the foreground service itself still runs fine either way.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         setContent {
             MaterialTheme {
                 Surface {
                     val controller = remember { screenController }
-                    Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.weight(1f).padding(0.dp)) {
-                            DroidputterScreen(controller)
-                            Button(
-                                onClick = { startDemoReplay() },
-                                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                            ) {
-                                Text("Replay fixture")
+                    if (showConnectionScreen) {
+                        ConnectionScreen(
+                            status = connectionStatus,
+                            rates = linkRates,
+                            onReconnect = { linkManager.reconnect() },
+                            onResendHelloAck = ::sendHelloAckNow,
+                            onClose = { showConnectionScreen = false },
+                        )
+                    } else {
+                        Column(Modifier.fillMaxSize()) {
+                            Box(Modifier.weight(1f).padding(0.dp)) {
+                                DroidputterScreen(controller)
+                                Button(
+                                    onClick = { showConnectionScreen = true },
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                                ) {
+                                    Text(connectionStatus.state.name)
+                                }
+                                Button(
+                                    onClick = { startDemoReplay() },
+                                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                                ) {
+                                    Text("Replay fixture")
+                                }
                             }
+                            SoftKeyboard(onKey = ::sendKey, modifier = Modifier.fillMaxWidth())
                         }
-                        SoftKeyboard(onKey = ::sendKey, modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -92,6 +139,14 @@ class MainActivity : ComponentActivity() {
                         framer.feed(bytes).forEach { frame ->
                             val message = decodeDpMessage(frame) ?: return@forEach
                             if (message is DpMessage.Hello) stateMachine.handle(LinkEvent.HelloReceived)
+                            if (message is DpMessage.Stats) {
+                                linkRates = statsTracker.onStats(
+                                    message.frames,
+                                    message.bytes,
+                                    message.dropped,
+                                    System.currentTimeMillis(),
+                                )
+                            }
                             screenController.onMessage(message)
                             Log.d(TAG, "decoded: $message")
                         }
@@ -105,12 +160,20 @@ class MainActivity : ComponentActivity() {
             onAction = { action ->
                 Log.d(TAG, "link action: $action")
                 when (action) {
-                    LinkAction.SEND_HELLO_ACK -> {
-                        val metrics = resources.displayMetrics
-                        transport?.write(encodeHelloAck(metrics.widthPixels, metrics.heightPixels))
-                    }
+                    LinkAction.SEND_HELLO_ACK -> sendHelloAckNow()
                     LinkAction.SEND_PING -> transport?.write(encodePingIn())
                     else -> {}
+                }
+            },
+            onStatus = { status ->
+                connectionStatus = status
+                // The foreground service is what keeps the link alive once the screen turns
+                // off -- start it only while actually Linked, so it never lingers after a
+                // detach/error and the OS doesn't see an idle foreground service.
+                if (status.state == LinkState.LINKED) {
+                    LinkForegroundService.start(this, "Linked to ${status.deviceName ?: "device"}")
+                } else {
+                    LinkForegroundService.stop(this)
                 }
             },
         )
@@ -119,6 +182,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         linkManager.stop()
+        LinkForegroundService.stop(this)
         super.onDestroy()
     }
 
@@ -126,6 +190,14 @@ class MainActivity : ComponentActivity() {
      * turn a Cardputer (row, col, down) into a KEY frame on whatever transport is open. */
     private fun sendKey(row: Int, col: Int, down: Boolean) {
         transport?.write(encodeKey(row, col, down))
+    }
+
+    /** The resync action (task's "Send HELLO_ACK again"): the ESP repaints the whole screen on
+     * every HELLO_ACK it receives (droidputter.cpp's link-up resync), so replaying this is also
+     * the manual "redraw everything" button when the phone's own copy looks stale. */
+    private fun sendHelloAckNow() {
+        val metrics = resources.displayMetrics
+        transport?.write(encodeHelloAck(metrics.widthPixels, metrics.heightPixels))
     }
 
     // Hardware-keyboard passthrough (Bluetooth/USB keyboard attached to the phone itself, not

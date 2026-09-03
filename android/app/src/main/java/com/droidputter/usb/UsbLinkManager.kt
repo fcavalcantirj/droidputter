@@ -10,6 +10,7 @@ import android.hardware.usb.UsbManager
 import androidx.core.content.ContextCompat
 import com.droidputter.core.link.LinkAction
 import com.droidputter.core.link.LinkEvent
+import com.droidputter.core.link.LinkState
 import com.droidputter.core.link.LinkStateMachine
 import com.hoho.android.usbserial.driver.CdcAcmSerialDriver
 import com.hoho.android.usbserial.driver.ProbeTable
@@ -20,6 +21,15 @@ private const val ACTION_USB_PERMISSION = "com.droidputter.USB_PERMISSION"
 private const val ESP_VENDOR_ID = 0x303A
 private const val ESP_PRODUCT_ID = 0x1001
 
+/** Everything the connection screen needs to render, in one immutable snapshot. */
+data class LinkStatus(
+    val state: LinkState,
+    val deviceName: String?,
+    val permissionGranted: Boolean?,
+    val missedPings: Int,
+    val availableDevices: List<String>,
+)
+
 /**
  * Owns the USB attach/permission/open dance and drives [LinkStateMachine] with the result:
  * device plugged in -> [LinkEvent.DeviceAttached] (permission requested as its side effect),
@@ -27,7 +37,8 @@ private const val ESP_PRODUCT_ID = 0x1001
  * port opened -> [LinkEvent.Opened], unplugged (including an ESP-side reset, which
  * re-enumerates the same VID/PID and re-triggers the attach intent) -> [LinkEvent.Detached].
  * Actions returned by the state machine that this class does not itself cause (SEND_HELLO_ACK,
- * SEND_PING) are forwarded to [onAction] for the caller to execute.
+ * SEND_PING) are forwarded to [onAction] for the caller to execute. Every state/device/permission
+ * change is mirrored into [onStatus] so a connection screen can render without polling.
  */
 class UsbLinkManager(
     private val context: Context,
@@ -35,6 +46,7 @@ class UsbLinkManager(
     private val onTransportOpened: (UsbDpTransport) -> Unit,
     private val onTransportClosed: () -> Unit,
     private val onAction: (LinkAction) -> Unit = {},
+    private val onStatus: (LinkStatus) -> Unit = {},
 ) {
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
     private val prober = UsbSerialProber(
@@ -44,14 +56,18 @@ class UsbLinkManager(
 
     private var transport: UsbDpTransport? = null
     private var started = false
+    private var deviceName: String? = null
+    private var permissionGranted: Boolean? = null
 
     private val permissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             if (intent.action != ACTION_USB_PERMISSION) return
             val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
             val device = intent.getParcelableExtraCompat<UsbDevice>(UsbManager.EXTRA_DEVICE)
+            permissionGranted = granted
             dispatch(if (granted) LinkEvent.PermissionGranted else LinkEvent.PermissionDenied)
             if (granted && device != null) open(device)
+            emitStatus()
         }
     }
 
@@ -64,6 +80,7 @@ class UsbLinkManager(
                     closeTransport()
                 }
             }
+            emitStatus()
         }
     }
 
@@ -87,6 +104,7 @@ class UsbLinkManager(
             dispatch(LinkEvent.DeviceAttached)
             requestPermission(driver.device)
         }
+        emitStatus()
     }
 
     fun stop() {
@@ -95,6 +113,18 @@ class UsbLinkManager(
         runCatching { context.unregisterReceiver(permissionReceiver) }
         runCatching { context.unregisterReceiver(attachReceiver) }
         closeTransport()
+    }
+
+    /** Manual "Reconnect" action: re-probes for the ESP and, if present, re-requests permission
+     * even from [LinkState.ERROR] or [LinkState.RECONNECTING] where no OS intent will retry it
+     * on its own (e.g. permission was denied once, or the state machine gave up after missed
+     * pings but the device never physically detached). No-op if nothing is plugged in. */
+    fun reconnect() {
+        findDevice()?.let { driver ->
+            dispatch(LinkEvent.DeviceAttached)
+            requestPermission(driver.device)
+        }
+        emitStatus()
     }
 
     private fun findDevice(): UsbSerialDriver? =
@@ -117,18 +147,26 @@ class UsbLinkManager(
         val connection = usbManager.openDevice(driver.device) ?: return
         val opened = UsbDpTransport(driver.ports[0], connection)
         transport = opened
+        deviceName = device.productName ?: device.deviceName
         dispatch(LinkEvent.Opened)
         onTransportOpened(opened)
+        emitStatus()
     }
 
     private fun closeTransport() {
         transport?.close()
         transport = null
+        deviceName = null
         onTransportClosed()
     }
 
     private fun dispatch(event: LinkEvent) {
         stateMachine.handle(event).forEach(onAction)
+    }
+
+    private fun emitStatus() {
+        val devices = usbManager.deviceList.values.map { it.productName ?: it.deviceName }
+        onStatus(LinkStatus(stateMachine.state, deviceName, permissionGranted, stateMachine.missedPings, devices))
     }
 }
 

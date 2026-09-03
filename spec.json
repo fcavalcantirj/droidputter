@@ -316,7 +316,7 @@
       "State from the core state machine; a persistent notification while linked (foreground service) so the link survives screen-off; 'Send HELLO_ACK again' as the resync action.",
       "Verify: `./gradlew :app:assembleDebug` exits 0. Hardware: unplug/replug the Cardputer 10 times; the app returns to Linked each time without restarting the app (record [REAL] count); UAT line if no phone."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "app",
