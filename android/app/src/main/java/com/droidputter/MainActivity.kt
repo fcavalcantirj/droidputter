@@ -59,14 +59,19 @@ import com.droidputter.usb.LinkStatus
 import com.droidputter.usb.UsbDpTransport
 import com.droidputter.usb.UsbLinkManager
 import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val TAG = "Droidputter"
 private val DEMO_FIXTURE_ASSET_FILES = listOf("boot.bin", "boot.jsonl")
 private const val DEMO_FIXTURE_ASSET_DIR = "fixtures/pense-bem"
+private const val PROBE_INTERVAL_MS = 1_000L
+private const val PROBE_ATTEMPTS = 30
+private const val RECONNECT_DELAY_MS = 1_500L
 
 // Dumb shell: rendering lives in render/ (Bitmap + Compose canvas), protocol decoding in
 // :core (Framer/DpMessage/ScreenModel) -- this class only forwards bytes between whichever
@@ -78,6 +83,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var linkManager: UsbLinkManager
     private var transport: UsbDpTransport? = null
     private var demoJob: Job? = null
+    private var probeJob: Job? = null
 
     private var connectionStatus: LinkStatus by mutableStateOf(
         LinkStatus(LinkState.DETACHED, null, null, 0, emptyList()),
@@ -178,32 +184,64 @@ class MainActivity : ComponentActivity() {
                 // TX ring never sees one otherwise (the ESP only resends HELLO on HELLO_ACK/PING_IN,
                 // see droidputter.cpp:onFrame) -- so probe for it immediately.
                 opened.write(encodePingIn())
+                // One probe is not enough: the ESP32-S3's HWCDC goes mute after a USB bus reset
+                // until it receives host->device data, and a freshly (re)booted ESP ignores
+                // anything that lands before its first draw (droidputter.cpp: poll() returns until
+                // begin()). Seen 2026-09-03 09:53: port open, PING_IN written once, silent for 8 min.
+                // So keep probing every second until the link is up or the port goes away.
+                probeJob?.cancel()
+                probeJob = lifecycleScope.launch {
+                    repeat(PROBE_ATTEMPTS) {
+                        delay(PROBE_INTERVAL_MS)
+                        if (connectionStatus.state == LinkState.LINKED || transport !== opened) return@launch
+                        Log.d(TAG, "probe: PING_IN retry ${it + 1}")
+                        opened.write(encodePingIn())
+                    }
+                }
                 // The ESP's display tee stays OFF until it receives HELLO_ACK (droidputter.cpp:
                 // internal::linked). PING_IN only makes it answer HELLO. So ACK the first HELLO of
                 // every link, once (the ESP replies to HELLO_ACK with another HELLO -- ignore that).
                 val framer = Framer()
                 lifecycleScope.launch {
-                    opened.incoming.collect { bytes ->
-                        framer.feed(bytes).forEach { frame ->
-                            val message = decodeDpMessage(frame) ?: return@forEach
-                            if (message is DpMessage.Hello) {
-                                linkManager.onHelloReceived()
+                    // The reader thread ends its Flow with the usb-serial IOException on every
+                    // unplug/re-enumeration ("USB get_status request failed", "Queueing USB request
+                    // failed"); uncaught here it killed the whole app (4 crashes on 2026-09-03).
+                    // Treat it as a detach and let the attach intent bring the link back.
+                    try {
+                        opened.incoming.collect { bytes ->
+                            framer.feed(bytes).forEach { frame ->
+                                val message = decodeDpMessage(frame) ?: return@forEach
+                                if (message is DpMessage.Hello) {
+                                    linkManager.onHelloReceived()
+                                }
+                                if (message is DpMessage.Stats) {
+                                    linkRates = statsTracker.onStats(
+                                        message.frames,
+                                        message.bytes,
+                                        message.dropped,
+                                        System.currentTimeMillis(),
+                                    )
+                                }
+                                screenController.onMessage(message)
+                                Log.d(TAG, "decoded: $message")
                             }
-                            if (message is DpMessage.Stats) {
-                                linkRates = statsTracker.onStats(
-                                    message.frames,
-                                    message.bytes,
-                                    message.dropped,
-                                    System.currentTimeMillis(),
-                                )
-                            }
-                            screenController.onMessage(message)
-                            Log.d(TAG, "decoded: $message")
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "usb reader ended: ${e.message}")
+                        if (transport === opened) {
+                            linkManager.onReaderFailed()
+                            // If the device is still enumerated (transient "Queueing USB request
+                            // failed" right after attach), no OS intent will retry for us.
+                            delay(RECONNECT_DELAY_MS)
+                            if (connectionStatus.state != LinkState.LINKED) linkManager.reconnect()
                         }
                     }
                 }
             },
             onTransportClosed = {
+                probeJob?.cancel()
                 transport = null
                 Log.d(TAG, "usb transport closed")
             },

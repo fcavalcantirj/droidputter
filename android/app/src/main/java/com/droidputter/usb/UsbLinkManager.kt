@@ -170,6 +170,14 @@ class UsbLinkManager(
         emitStatus()
     }
 
+    /** The reader thread died with an IOException (device gone or re-enumerating). Same handling as
+     *  a physical detach: close the port and wait for the OS attach intent to bring it back. */
+    fun onReaderFailed() {
+        dispatch(LinkEvent.Detached)
+        closeTransport()
+        emitStatus()
+    }
+
     private fun dispatch(event: LinkEvent) {
         stateMachine.handle(event).forEach(onAction)
     }
