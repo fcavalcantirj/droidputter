@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Regenerates apps/catalog.json from PlatformIO build outputs under apps/*/.pio/build/.
+
+Usage:
+    python3 tools/make_catalog.py            # write apps/catalog.json
+    python3 tools/make_catalog.py --check    # exit 1 if apps/catalog.json is stale
+"""
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CATALOG_PATH = REPO_ROOT / "apps" / "catalog.json"
+
+# boot_app0.bin is a fixed toolchain file (arduino-esp32 core), not a per-app
+# build output; every entry here uses the default_8MB.csv partition table,
+# whose otadata slot at 0xe000 needs it (see docs/FLASHING.md).
+BOOT_APP0 = (
+    Path.home()
+    / ".platformio"
+    / "packages"
+    / "framework-arduinoespressif32"
+    / "tools"
+    / "partitions"
+    / "boot_app0.bin"
+)
+
+# (offset, filename, required) for every entry's bin parts, in flash order.
+PARTS = [
+    (0x0, "bootloader.bin"),
+    (0x8000, "partitions.bin"),
+    (0xE000, None),  # boot_app0.bin, resolved via BOOT_APP0 below
+    (0x10000, "firmware.bin"),
+]
+
+APPS = [
+    {
+        "name": "pense-bem",
+        "board": "m5stack-stamps3",
+        "env": "m5cardputer",
+        "build_dir": "apps/pense-bem/.pio/build/m5cardputer",
+        "description": "Pense-Bem rebuilt against the droidputter shim, real ST7789 panel + physical keyboard tee'd over USB-CDC.",
+        "source_repo": "/Users/fcavalcanti/dev/m5/cardputter-pense-pem",
+        "license": "unlicensed (private repo, Felipe Cavalcanti)",
+    },
+    {
+        "name": "pense-bem",
+        "board": "m5stack-stamps3",
+        "env": "m5cardputer-virtual",
+        "build_dir": "apps/pense-bem/.pio/build/m5cardputer-virtual",
+        "description": "Pense-Bem on Panel_Droidputter (no physical display driven): the phone is the only screen.",
+        "source_repo": "/Users/fcavalcanti/dev/m5/cardputter-pense-pem",
+        "license": "unlicensed (private repo, Felipe Cavalcanti)",
+    },
+    {
+        "name": "m5-example",
+        "board": "m5stack-stamps3",
+        "env": "m5cardputer",
+        "build_dir": "apps/m5-example/.pio/build/m5cardputer",
+        "description": "M5Cardputer library's own Basic/keyboard/inputText example rebuilt against the shim, unmodified.",
+        "source_repo": "https://github.com/m5stack/M5Cardputer.git",
+        "license": "MIT (m5stack/M5Cardputer)",
+    },
+    {
+        "name": "m5-example",
+        "board": "m5stack-sticks3",
+        "env": "m5stack-sticks3",
+        "build_dir": "apps/m5-example/.pio/build/m5stack-sticks3",
+        "description": "Same inputText example rebuilt for the M5Stack StickS3 (ESP32-S3-PICO-1-N8R8, PSRAM opi).",
+        "source_repo": "https://github.com/m5stack/M5Cardputer.git",
+        "license": "MIT (m5stack/M5Cardputer)",
+    },
+]
+
+
+def sha256_of(path: Path) -> str:
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
+
+
+def build_entry(app: dict) -> dict:
+    build_dir = REPO_ROOT / app["build_dir"]
+    parts = []
+    for offset, filename in PARTS:
+        path = BOOT_APP0 if filename is None else build_dir / filename
+        if not path.is_file():
+            raise FileNotFoundError(f"{app['name']}/{app['env']}: missing {path}")
+        parts.append(
+            {
+                "offset": hex(offset),
+                "file": path.name,
+                "size": path.stat().st_size,
+                "sha256": sha256_of(path),
+            }
+        )
+    return {
+        "name": app["name"],
+        "board": app["board"],
+        "env": app["env"],
+        "description": app["description"],
+        "source_repo": app["source_repo"],
+        "license": app["license"],
+        "parts": parts,
+    }
+
+
+def generate() -> list:
+    return [build_entry(app) for app in APPS]
+
+
+def main() -> int:
+    check = "--check" in sys.argv
+    try:
+        catalog = generate()
+    except FileNotFoundError as exc:
+        print(f"make_catalog: {exc}", file=sys.stderr)
+        return 1
+
+    text = json.dumps(catalog, indent=2) + "\n"
+
+    if check:
+        if not CATALOG_PATH.is_file():
+            print("make_catalog: apps/catalog.json does not exist", file=sys.stderr)
+            return 1
+        current = CATALOG_PATH.read_text()
+        if current != text:
+            print("make_catalog: apps/catalog.json is stale, run without --check to regenerate", file=sys.stderr)
+            return 1
+        print("catalog ok")
+        return 0
+
+    CATALOG_PATH.write_text(text)
+    print(f"wrote {CATALOG_PATH} ({len(catalog)} entries)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

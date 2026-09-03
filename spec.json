@@ -347,7 +347,7 @@
       "Write apps/catalog.json with the Pense-Bem and m5-example entries produced by the spike builds; a script tools/make_catalog.py regenerates it from apps/*/ build outputs and computes sha256.",
       "Verify: `python3 tools/make_catalog.py --check` exits 0 and `jq length apps/catalog.json` prints >= 2."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "catalog",

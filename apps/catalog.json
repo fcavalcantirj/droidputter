@@ -1,0 +1,138 @@
+[
+  {
+    "name": "pense-bem",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Pense-Bem rebuilt against the droidputter shim, real ST7789 panel + physical keyboard tee'd over USB-CDC.",
+    "source_repo": "/Users/fcavalcanti/dev/m5/cardputter-pense-pem",
+    "license": "unlicensed (private repo, Felipe Cavalcanti)",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 505520,
+        "sha256": "9f96312499fc084f407984ef75f03422a5161e4e09c08f91581c353065f138dd"
+      }
+    ]
+  },
+  {
+    "name": "pense-bem",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer-virtual",
+    "description": "Pense-Bem on Panel_Droidputter (no physical display driven): the phone is the only screen.",
+    "source_repo": "/Users/fcavalcanti/dev/m5/cardputter-pense-pem",
+    "license": "unlicensed (private repo, Felipe Cavalcanti)",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 450560,
+        "sha256": "ea7c24124fc2cb7915a6078d7a3387ac611359a8ebef10979a513a8372476958"
+      }
+    ]
+  },
+  {
+    "name": "m5-example",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "M5Cardputer library's own Basic/keyboard/inputText example rebuilt against the shim, unmodified.",
+    "source_repo": "https://github.com/m5stack/M5Cardputer.git",
+    "license": "MIT (m5stack/M5Cardputer)",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 464080,
+        "sha256": "80d3a979b74d269825c886691dba73f2637e45a890119897ce9ac80a2588c313"
+      }
+    ]
+  },
+  {
+    "name": "m5-example",
+    "board": "m5stack-sticks3",
+    "env": "m5stack-sticks3",
+    "description": "Same inputText example rebuilt for the M5Stack StickS3 (ESP32-S3-PICO-1-N8R8, PSRAM opi).",
+    "source_repo": "https://github.com/m5stack/M5Cardputer.git",
+    "license": "MIT (m5stack/M5Cardputer)",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 510848,
+        "sha256": "fed47744a6f91753126cfc04d4b48bf571fdc2d557de8bc6c4b4099bce76e198"
+      }
+    ]
+  }
+]
