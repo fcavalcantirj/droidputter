@@ -1,6 +1,7 @@
 package com.droidputter.core.esptool
 
 import java.security.MessageDigest
+import java.util.zip.Deflater
 
 /**
  * Byte pipe to a chip sitting in the ROM bootloader. The app supplies it over usb-serial-for-android;
@@ -26,7 +27,11 @@ class EspFlasher(
     private val link: RomLink,
     private val flashSizeBytes: Long = 8L * 1024 * 1024,
     private val onProgress: (String, Int) -> Unit = { _, _ -> },
+    private val compress: Boolean = true,
 ) {
+    /** Set once the ROM refuses FLASH_DEFL_BEGIN; every later image goes uncompressed. */
+    var compressionSupported: Boolean = compress
+        private set
     private val decoder = SlipDecoder()
     private val pending = ArrayDeque<ByteArray>()
 
@@ -60,11 +65,50 @@ class EspFlasher(
     }
 
     fun writeImage(image: FlashImage) {
+        if (compressionSupported && writeImageCompressed(image)) return
+        writeImageRaw(image)
+    }
+
+    /** zlib level 9 stream in 1 KB FLASH_DEFL_DATA blocks; false if the ROM rejected DEFL_BEGIN. */
+    private fun writeImageCompressed(image: FlashImage): Boolean {
+        val size = image.data.size.toLong()
+        val comp = deflate(image.data)
+        val blocks = ((comp.size + RomProtocol.FLASH_WRITE_SIZE - 1) / RomProtocol.FLASH_WRITE_SIZE)
+        onProgress("${image.name}: erasing ${size} B at 0x${image.offset.toString(16)} (compressed ${comp.size} B)", 0)
+        val beginTimeout = maxOf(10_000L, 30_000L * (size / 1_048_576 + 1))
+        link.write(Slip.encode(RomProtocol.flashDeflBegin(size, comp.size.toLong(), image.offset)))
+        val r = awaitResponse(RomProtocol.OP_FLASH_DEFL_BEGIN, beginTimeout) ?: throw EspFlashException("FLASH_DEFL_BEGIN timed out")
+        if (!r.statusOk) {
+            onProgress("${image.name}: ROM refused compressed mode (error 0x${r.errorCode.toString(16)}), falling back to raw", 0)
+            compressionSupported = false
+            return false
+        }
+        for (seq in 0 until blocks) {
+            val from = seq * RomProtocol.FLASH_WRITE_SIZE
+            val to = minOf(from + RomProtocol.FLASH_WRITE_SIZE, comp.size)
+            // the ROM inflates and writes up to a few KB per block: give it esptool's 40 s/MB budget
+            command(RomProtocol.flashDeflData(comp.copyOfRange(from, to), seq.toLong()), RomProtocol.OP_FLASH_DEFL_DATA, 5_000, "FLASH_DEFL_DATA #$seq")
+            if (seq % 16 == 0 || seq == blocks - 1) onProgress("${image.name}: ${to} / ${comp.size} B compressed", ((seq + 1) * 100 / blocks))
+        }
+        return true
+    }
+
+    private fun writeImageRaw(image: FlashImage) {
         val size = image.data.size.toLong()
         val blocks = ((size + RomProtocol.FLASH_WRITE_SIZE - 1) / RomProtocol.FLASH_WRITE_SIZE).toInt()
         onProgress("${image.name}: erasing ${size} B at 0x${image.offset.toString(16)}", 0)
         // ROM erases the region inside FLASH_BEGIN: budget 30 s per MB like esptool, 10 s minimum.
-        command(RomProtocol.flashBegin(size, image.offset), RomProtocol.OP_FLASH_BEGIN, maxOf(10_000L, 30_000L * (size / 1_048_576 + 1)), "FLASH_BEGIN")
+        // One retry after a re-sync: two early hardware runs saw the second image's FLASH_BEGIN go
+        // unanswered (2026-09-03, cause not isolated); SYNC is harmless inside the loader.
+        val beginTimeout = maxOf(10_000L, 30_000L * (size / 1_048_576 + 1))
+        try {
+            command(RomProtocol.flashBegin(size, image.offset), RomProtocol.OP_FLASH_BEGIN, beginTimeout, "FLASH_BEGIN")
+        } catch (e: EspFlashException) {
+            if (!e.message!!.contains("timed out")) throw e
+            onProgress("${image.name}: FLASH_BEGIN unanswered, re-syncing and retrying once", 0)
+            sync()
+            command(RomProtocol.flashBegin(size, image.offset), RomProtocol.OP_FLASH_BEGIN, beginTimeout, "FLASH_BEGIN (retry)")
+        }
         for (seq in 0 until blocks) {
             val from = seq * RomProtocol.FLASH_WRITE_SIZE
             val to = minOf(from + RomProtocol.FLASH_WRITE_SIZE, image.data.size)
@@ -131,5 +175,16 @@ class EspFlasher(
 
     companion object {
         fun md5Hex(data: ByteArray): String = MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
+
+        /** zlib stream (header + deflate + adler32), level 9 -- what esptool's zlib.compress(data, 9) sends. */
+        fun deflate(data: ByteArray): ByteArray {
+            val d = Deflater(9)
+            d.setInput(data); d.finish()
+            val out = java.io.ByteArrayOutputStream(data.size / 2 + 64)
+            val buf = ByteArray(16384)
+            while (!d.finished()) { val n = d.deflate(buf); out.write(buf, 0, n) }
+            d.end()
+            return out.toByteArray()
+        }
     }
 }

@@ -15,6 +15,8 @@ object RomProtocol {
     const val OP_FLASH_END = 0x04
     const val OP_SYNC = 0x08
     const val OP_READ_REG = 0x0A
+    const val OP_FLASH_DEFL_BEGIN = 0x10
+    const val OP_FLASH_DEFL_DATA = 0x11
     const val OP_SPI_SET_PARAMS = 0x0B
     const val OP_SPI_ATTACH = 0x0D
     const val OP_SPI_FLASH_MD5 = 0x13
@@ -76,6 +78,21 @@ object RomProtocol {
             checksum(padded),
         )
     }
+
+    /** Compressed write: the ROM inflates a zlib stream of [size] bytes sent in [compSize] bytes;
+     *  it erases and expects the size rounded to whole write blocks (esptool ROM branch). */
+    fun flashDeflBegin(size: Long, compSize: Long, offset: Long): ByteArray {
+        val numBlocks = (compSize + FLASH_WRITE_SIZE - 1) / FLASH_WRITE_SIZE
+        val eraseBlocks = (size + FLASH_WRITE_SIZE - 1) / FLASH_WRITE_SIZE
+        return request(
+            OP_FLASH_DEFL_BEGIN,
+            u32(eraseBlocks * FLASH_WRITE_SIZE) + u32(numBlocks) + u32(FLASH_WRITE_SIZE.toLong()) + u32(offset) + u32(0),
+        )
+    }
+
+    /** One compressed block: not padded, the length word says how much is real. */
+    fun flashDeflData(block: ByteArray, seq: Long): ByteArray =
+        request(OP_FLASH_DEFL_DATA, u32(block.size.toLong()) + u32(seq) + u32(0) + u32(0) + block, checksum(block))
 
     /** reboot=false keeps the ROM in the loader so the next part (or the MD5 check) can follow. */
     fun flashEnd(reboot: Boolean): ByteArray = request(OP_FLASH_END, u32(if (reboot) 0 else 1))

@@ -45,7 +45,7 @@ class UsbRomLink(private val port: UsbSerialPort) : RomLink {
     }
 
     private companion object {
-        const val TRACE = true   // wire trace for the first hardware runs; drop once the flow is proven
+        const val TRACE = false  // wire trace (hex of every packet) for triage
         const val WRITE_TIMEOUT_MS = 1_000
         val EMPTY = ByteArray(0)
     }

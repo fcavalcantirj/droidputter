@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /** A ROM bootloader that answers like an ESP32-S3 (4 status bytes, echoes SYNC 8 times). */
-private class FakeRom(private val flashSize: Int = 8 * 1024 * 1024, private val failMd5: Boolean = false) : RomLink {
+private class FakeRom(private val flashSize: Int = 8 * 1024 * 1024, private val failMd5: Boolean = false, private val deflSupported: Boolean = true) : RomLink {
+    private val inflater = java.util.zip.Inflater()
+    private var deflWritten = 0L
     val flash = ByteArray(flashSize) { 0xFF.toByte() }
     val ops = ArrayList<Int>()
     private val decoder = SlipDecoder()
@@ -58,6 +60,21 @@ private class FakeRom(private val flashSize: Int = 8 * 1024 * 1024, private val 
                 val hdrSum = RomProtocol.get32(pkt, 4).toInt()
                 if (sum != hdrSum || len != RomProtocol.FLASH_WRITE_SIZE || seq >= beginBlocks) { reply(op, status = 1, error = 8); return }
                 block.copyInto(flash, (beginOffset + seq * len).toInt())
+                reply(op)
+            }
+            RomProtocol.OP_FLASH_DEFL_BEGIN -> {
+                if (!deflSupported) { reply(op, status = 1, error = 0x05); return }
+                beginBlocks = RomProtocol.get32(data, 4); beginOffset = RomProtocol.get32(data, 12); deflWritten = 0
+                inflater.reset()
+                reply(op, status = if (data.size == 20) 0 else 1, error = 7)
+            }
+            RomProtocol.OP_FLASH_DEFL_DATA -> {
+                val len = RomProtocol.get32(data, 0).toInt(); val seq = RomProtocol.get32(data, 4)
+                val block = data.copyOfRange(16, 16 + len)
+                if (RomProtocol.checksum(block) != RomProtocol.get32(pkt, 4).toInt() || seq >= beginBlocks) { reply(op, status = 1, error = 8); return }
+                inflater.setInput(block)
+                val tmp = ByteArray(65536)
+                while (true) { val n = inflater.inflate(tmp); if (n == 0) break; tmp.copyInto(flash, (beginOffset + deflWritten).toInt(), 0, n); deflWritten += n }
                 reply(op)
             }
             RomProtocol.OP_FLASH_END -> reply(op)
@@ -128,11 +145,34 @@ class EspFlasherTest {
         assertArrayEquals(fw, rom.flash.copyOfRange(0x10000, 0x10000 + fw.size))
         assertEquals(0xFF, rom.flash[0x10000 + fw.size].toInt() and 0xFF)  // padding stays erased
         assertEquals(listOf(RomProtocol.OP_SYNC, RomProtocol.OP_READ_REG, RomProtocol.OP_SPI_ATTACH, RomProtocol.OP_SPI_SET_PARAMS), rom.ops.take(4))
-        assertEquals(2, rom.ops.count { it == RomProtocol.OP_FLASH_BEGIN })
-        assertEquals(15 + 3, rom.ops.count { it == RomProtocol.OP_FLASH_DATA })
+        assertEquals(2, rom.ops.count { it == RomProtocol.OP_FLASH_DEFL_BEGIN })
+        assertEquals(0, rom.ops.count { it == RomProtocol.OP_FLASH_BEGIN })
+        assertTrue(rom.ops.count { it == RomProtocol.OP_FLASH_DEFL_DATA } < 15 + 3)  // compressible test data: fewer blocks than raw
         assertEquals(2, rom.ops.count { it == RomProtocol.OP_SPI_FLASH_MD5 })
         assertEquals(0, rom.ops.count { it == RomProtocol.OP_FLASH_END })  // ROM loader: FLASH_END would exit the loader
         assertTrue(progress.last().startsWith("done: 2 images"))
+    }
+
+    @Test
+    fun rawPathFlashesAndVerifies() {
+        val rom = FakeRom()
+        val fw = ByteArray(3000 + 17) { (it xor 0x5A).toByte() }
+        EspFlasher(rom, compress = false).flashAll(listOf(FlashImage("firmware.bin", 0x10000, fw)))
+        assertArrayEquals(fw, rom.flash.copyOfRange(0x10000, 0x10000 + fw.size))
+        assertEquals(1, rom.ops.count { it == RomProtocol.OP_FLASH_BEGIN })
+        assertEquals(3, rom.ops.count { it == RomProtocol.OP_FLASH_DATA })
+    }
+
+    @Test
+    fun romWithoutDeflateFallsBackToRaw() {
+        val rom = FakeRom(deflSupported = false)
+        val fw = ByteArray(2048) { (it * 3).toByte() }
+        val flasher = EspFlasher(rom)
+        flasher.flashAll(listOf(FlashImage("a.bin", 0x0, fw), FlashImage("b.bin", 0x10000, fw)))
+        assertEquals(false, flasher.compressionSupported)
+        assertEquals(1, rom.ops.count { it == RomProtocol.OP_FLASH_DEFL_BEGIN })  // refused once, never retried
+        assertEquals(2, rom.ops.count { it == RomProtocol.OP_FLASH_BEGIN })
+        assertArrayEquals(fw, rom.flash.copyOfRange(0x10000, 0x10000 + fw.size))
     }
 
     @Test
