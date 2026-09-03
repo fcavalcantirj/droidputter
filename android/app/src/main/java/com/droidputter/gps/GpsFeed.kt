@@ -45,7 +45,13 @@ class GpsFeed(
     private var satellitesInUse = 0
 
     private val nmeaListener = OnNmeaMessageListener { message, timestamp ->
-        lastRawNmeaAtMillis = timestamp
+        // Only a sentence carrying a real fix counts as "raw NMEA alive": indoors the GNSS chip keeps
+        // emitting proprietary/empty sentences ($PMTK..., GGA quality 0), which must not block the
+        // synthesized fallback from network/fused fixes.
+        val f = message.split(',')
+        val hasFix = (f[0].endsWith("GGA") && f.size > 6 && f[6].isNotEmpty() && f[6] != "0") ||
+            (f[0].endsWith("RMC") && f.size > 2 && f[2] == "A")
+        if (hasFix) lastRawNmeaAtMillis = timestamp
         emit(NmeaNormalizer.normalize(message), GpsSentenceSource.RAW_NMEA)
     }
 

@@ -120,11 +120,13 @@ class UsbLinkManager(
      * on its own (e.g. permission was denied once, or the state machine gave up after missed
      * pings but the device never physically detached). No-op if nothing is plugged in. */
     fun reconnect() {
-        findDevice()?.let { driver ->
-            dispatch(LinkEvent.DeviceAttached)
-            requestPermission(driver.device)
-        }
-        emitStatus()
+        runCatching {
+            findDevice()?.let { driver ->
+                dispatch(LinkEvent.DeviceAttached)
+                requestPermission(driver.device)
+            }
+            emitStatus()
+        }.onFailure { android.util.Log.w("Droidputter", "reconnect failed: ${it.message}") }
     }
 
     private fun findDevice(): UsbSerialDriver? =

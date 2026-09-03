@@ -28,7 +28,8 @@ class UsbDpTransport(
     }
 
     override fun write(bytes: ByteArray) {
-        port.write(bytes, WRITE_TIMEOUT_MS)
+        // A dead/re-enumerating port throws IOException; the link manager's detach path handles it.
+        runCatching { port.write(bytes, WRITE_TIMEOUT_MS) }.onFailure { android.util.Log.w("Droidputter", "usb write failed: ${it.message}") }
     }
 
     override val incoming: Flow<ByteArray> = callbackFlow {
