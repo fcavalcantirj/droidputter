@@ -2,9 +2,13 @@ package com.droidputter
 
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.droidputter.core.keys.AndroidKeyMap
+import com.droidputter.core.keys.encodeKey
 import com.droidputter.core.link.LinkAction
 import com.droidputter.core.link.LinkEvent
 import com.droidputter.core.link.LinkStateMachine
@@ -24,6 +30,7 @@ import com.droidputter.core.protocol.DpMessage
 import com.droidputter.core.protocol.Framer
 import com.droidputter.core.protocol.decodeDpMessage
 import com.droidputter.core.transport.FixtureTransport
+import com.droidputter.keyboard.SoftKeyboard
 import com.droidputter.render.DroidputterScreen
 import com.droidputter.render.ScreenController
 import com.droidputter.usb.UsbDpTransport
@@ -54,14 +61,17 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface {
                     val controller = remember { screenController }
-                    Box(Modifier.padding(0.dp)) {
-                        DroidputterScreen(controller)
-                        Button(
-                            onClick = { startDemoReplay() },
-                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                        ) {
-                            Text("Replay fixture")
+                    Column(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(1f).padding(0.dp)) {
+                            DroidputterScreen(controller)
+                            Button(
+                                onClick = { startDemoReplay() },
+                                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                            ) {
+                                Text("Replay fixture")
+                            }
                         }
+                        SoftKeyboard(onKey = ::sendKey, modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -110,6 +120,34 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         linkManager.stop()
         super.onDestroy()
+    }
+
+    /** Shared by the soft keyboard and hardware-keyboard passthrough below: both just need to
+     * turn a Cardputer (row, col, down) into a KEY frame on whatever transport is open. */
+    private fun sendKey(row: Int, col: Int, down: Boolean) {
+        transport?.write(encodeKey(row, col, down))
+    }
+
+    // Hardware-keyboard passthrough (Bluetooth/USB keyboard attached to the phone itself, not
+    // the Cardputer's own matrix): repeats are swallowed so a held key sends one KEY down, not a
+    // flood of them; codes with no Cardputer position (AndroidKeyMap.position == null) fall
+    // through to the default handler untouched.
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event != null && event.repeatCount == 0) {
+            AndroidKeyMap.position(keyCode)?.let { (row, col) ->
+                sendKey(row, col, true)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        AndroidKeyMap.position(keyCode)?.let { (row, col) ->
+            sendKey(row, col, false)
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     /** No-USB demo mode: replays the bundled fixture through the same Framer/ScreenController

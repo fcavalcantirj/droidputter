@@ -307,7 +307,7 @@
       "Compose grid using the core key table (legends, shift/fn modifiers held as sticky keys), touch down -> KEY down, up -> KEY up; physical KeyEvents mapped through the core map; haptic tick optional.",
       "Verify: `./gradlew :app:assembleDebug` exits 0. Hardware: pressing `1` on the phone starts Adição in Pense-Bem on the TFT and the phone screen follows within the S3-measured latency (record [REAL] in progress.txt); UAT line if no phone."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "app",
