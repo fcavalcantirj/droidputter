@@ -132,11 +132,15 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Text(connectionStatus.state.name)
                                 }
-                                Button(
-                                    onClick = { startDemoReplay() },
-                                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                                ) {
-                                    Text("Replay fixture")
+                                // Demo replay only when no device is attached: while a USB link is
+                                // up it would feed a recording into the live screen model.
+                                if (connectionStatus.state == LinkState.DETACHED) {
+                                    Button(
+                                        onClick = { startDemoReplay() },
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                                    ) {
+                                        Text("Replay fixture")
+                                    }
                                 }
                             }
                             SoftKeyboard(onKey = ::sendKey, modifier = Modifier.fillMaxWidth())
