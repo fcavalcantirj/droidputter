@@ -427,6 +427,6 @@
     "steps": [
       "Verify: `test -s AGENTS.md` and it contains the strings `pio test -e native`, `koverVerify` and `droidputter`."
     ],
-    "passes": false
+    "passes": true
   }
 ]
