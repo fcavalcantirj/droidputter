@@ -326,7 +326,7 @@
       "If the target board is not attached (`ls /dev/cu.usbmodem*` prints nothing), do every build-only step, append a `UAT:` line to progress.txt describing exactly what a human must confirm on hardware, and still mark the task passed. Hardware: apps/gps-demo on the Cardputer ADV linked to the phone shows the phone's lat/lon and satellite count on BOTH the TFT and the phone screen within 10 s outdoors (or a synthesized fix indoors). Record [REAL].",
       "Verify: `./gradlew :app:assembleDebug` exits 0 and progress.txt has the GPS [REAL] line (or UAT)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "app",

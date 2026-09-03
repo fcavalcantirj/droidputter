@@ -5,6 +5,7 @@ import com.droidputter.core.protocol.DP_SYNC1
 import com.droidputter.core.protocol.dpCrc8
 
 /** phone -> ESP wire types, docs/PROTOCOL.md "phone -> ESP types". */
+const val DP_TYPE_GPS_NMEA: Int = 0x82
 const val DP_TYPE_PING_IN: Int = 0x83
 const val DP_TYPE_HELLO_ACK: Int = 0x84
 
@@ -17,6 +18,13 @@ private fun frame(type: Int, payload: ByteArray): ByteArray {
 
 /** Encodes a 0-payload PING_IN frame, the caller's clock-driven keepalive/geometry probe. */
 fun encodePingIn(): ByteArray = frame(DP_TYPE_PING_IN, ByteArray(0))
+
+/**
+ * Encodes GPS_NMEA {one NMEA sentence, no CRLF} per docs/PROTOCOL.md -- [sentence] is the plain
+ * "$GPGGA,...*47" ASCII text (no leading/trailing whitespace, no CRLF; the shim's dp_gps.h ring
+ * appends CRLF on its own). Payload is US-ASCII bytes of the sentence as-is.
+ */
+fun encodeGpsNmea(sentence: String): ByteArray = frame(DP_TYPE_GPS_NMEA, sentence.toByteArray(Charsets.US_ASCII))
 
 /**
  * Encodes HELLO_ACK {w u16 LE, h u16 LE} -- byte-exact with docs/PROTOCOL.md's "phone -> ESP:

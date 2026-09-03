@@ -2,6 +2,7 @@ package com.droidputter
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -36,12 +37,16 @@ import com.droidputter.core.link.LinkRates
 import com.droidputter.core.link.LinkState
 import com.droidputter.core.link.LinkStateMachine
 import com.droidputter.core.link.LinkStatsTracker
+import com.droidputter.core.link.encodeGpsNmea
 import com.droidputter.core.link.encodeHelloAck
 import com.droidputter.core.link.encodePingIn
 import com.droidputter.core.protocol.DpMessage
 import com.droidputter.core.protocol.Framer
 import com.droidputter.core.protocol.decodeDpMessage
 import com.droidputter.core.transport.FixtureTransport
+import com.droidputter.gps.GpsFeed
+import com.droidputter.gps.GpsFeedStatus
+import com.droidputter.gps.GpsSentenceSource
 import com.droidputter.keyboard.SoftKeyboard
 import com.droidputter.link.LinkForegroundService
 import com.droidputter.render.DroidputterScreen
@@ -76,8 +81,23 @@ class MainActivity : ComponentActivity() {
     private var linkRates: LinkRates by mutableStateOf(LinkRates(0.0, 0.0, 0))
     private var showConnectionScreen: Boolean by mutableStateOf(false)
 
+    private var gpsStatus: GpsFeedStatus by mutableStateOf(
+        GpsFeedStatus(active = false, lastSentence = null, lastSource = null, satellitesInUse = 0),
+    )
+    private val gpsFeed: GpsFeed by lazy {
+        GpsFeed(
+            locationManager = getSystemService(LocationManager::class.java),
+            onSentence = ::sendGpsSentence,
+            onStatus = { gpsStatus = it },
+        )
+    }
+
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* denial just hides the notification */ }
+    private val requestLocationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) gpsFeed.start()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,8 +116,10 @@ class MainActivity : ComponentActivity() {
                         ConnectionScreen(
                             status = connectionStatus,
                             rates = linkRates,
+                            gpsStatus = gpsStatus,
                             onReconnect = { linkManager.reconnect() },
                             onResendHelloAck = ::sendHelloAckNow,
+                            onToggleGps = ::toggleGpsFeed,
                             onClose = { showConnectionScreen = false },
                         )
                     } else {
@@ -182,8 +204,33 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         linkManager.stop()
+        gpsFeed.stop()
         LinkForegroundService.stop(this)
         super.onDestroy()
+    }
+
+    /** Connection screen's "Start/Stop GPS feed" button: requests ACCESS_FINE_LOCATION on first
+     * use (a denial just leaves the feed off, same pattern as the notification permission), then
+     * toggles [GpsFeed] itself. */
+    private fun toggleGpsFeed() {
+        if (gpsStatus.active) {
+            gpsFeed.stop()
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            gpsFeed.start()
+        } else {
+            requestLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    /** [GpsFeed]'s sentence callback: only actually goes out over the wire while linked (the
+     * task's "streams ... while linked"), so a fix arriving before/after a link drop is not lost
+     * work, just silently not written -- gpsStatus above still reflects it landed on the phone. */
+    private fun sendGpsSentence(sentence: String, @Suppress("UNUSED_PARAMETER") source: GpsSentenceSource) {
+        if (connectionStatus.state == LinkState.LINKED) {
+            transport?.write(encodeGpsNmea(sentence))
+        }
     }
 
     /** Shared by the soft keyboard and hardware-keyboard passthrough below: both just need to

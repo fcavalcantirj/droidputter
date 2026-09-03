@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.droidputter.core.link.LinkRates
 import com.droidputter.core.link.LinkState
+import com.droidputter.gps.GpsFeedStatus
+import com.droidputter.gps.GpsSentenceSource
 import com.droidputter.usb.LinkStatus
 import java.util.Locale
 
@@ -27,8 +29,10 @@ import java.util.Locale
 fun ConnectionScreen(
     status: LinkStatus,
     rates: LinkRates,
+    gpsStatus: GpsFeedStatus,
     onReconnect: () -> Unit,
     onResendHelloAck: () -> Unit,
+    onToggleGps: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -59,11 +63,21 @@ fun ConnectionScreen(
         }
 
         HorizontalDivider()
+        Text("GPS feed", style = MaterialTheme.typography.titleMedium)
+        Text("streaming: ${if (gpsStatus.active) "on" else "off"}")
+        Text("last sentence: ${gpsStatus.lastSentence ?: "(none)"}")
+        Text("source: ${gpsSourceLabel(gpsStatus.lastSource)}")
+        Text("satellites in use: ${gpsStatus.satellitesInUse}")
+
+        HorizontalDivider()
         Button(onClick = onReconnect, modifier = Modifier.fillMaxWidth()) {
             Text("Reconnect")
         }
         OutlinedButton(onClick = onResendHelloAck, modifier = Modifier.fillMaxWidth()) {
             Text("Send HELLO_ACK again")
+        }
+        OutlinedButton(onClick = onToggleGps, modifier = Modifier.fillMaxWidth()) {
+            Text(if (gpsStatus.active) "Stop GPS feed" else "Start GPS feed")
         }
         OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
             Text("Back")
@@ -77,4 +91,10 @@ private fun permissionLabel(granted: Boolean?): String = when (granted) {
     true -> "granted"
     false -> "denied"
     null -> "not requested"
+}
+
+private fun gpsSourceLabel(source: GpsSentenceSource?): String = when (source) {
+    GpsSentenceSource.RAW_NMEA -> "raw NMEA"
+    GpsSentenceSource.SYNTHESIZED -> "synthesized"
+    null -> "(none yet)"
 }
