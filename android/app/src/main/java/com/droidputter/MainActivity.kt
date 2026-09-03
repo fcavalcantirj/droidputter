@@ -155,12 +155,24 @@ class MainActivity : ComponentActivity() {
                 // TX ring never sees one otherwise (the ESP only resends HELLO on HELLO_ACK/PING_IN,
                 // see droidputter.cpp:onFrame) -- so probe for it immediately.
                 opened.write(encodePingIn())
+                // The ESP's display tee stays OFF until it receives HELLO_ACK (droidputter.cpp:
+                // internal::linked). PING_IN only makes it answer HELLO. So ACK the first HELLO of
+                // every link, once (the ESP replies to HELLO_ACK with another HELLO -- ignore that).
+                var ackedThisLink = false
                 val framer = Framer()
                 lifecycleScope.launch {
                     opened.incoming.collect { bytes ->
                         framer.feed(bytes).forEach { frame ->
                             val message = decodeDpMessage(frame) ?: return@forEach
-                            if (message is DpMessage.Hello) stateMachine.handle(LinkEvent.HelloReceived)
+                            if (message is DpMessage.Hello) {
+                                stateMachine.handle(LinkEvent.HelloReceived)
+                                if (!ackedThisLink) {
+                                    ackedThisLink = true
+                                    val m = resources.displayMetrics
+                                    opened.write(encodeHelloAck(m.widthPixels, m.heightPixels))
+                                    Log.d(TAG, "sent HELLO_ACK (link up)")
+                                }
+                            }
                             if (message is DpMessage.Stats) {
                                 linkRates = statsTracker.onStats(
                                     message.frames,
