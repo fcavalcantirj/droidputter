@@ -384,7 +384,7 @@
       "`./gradlew :core:koverVerify` (>= 80% line) exits 0; `android/gates.sh` prints 0 android imports in core; `cd shim && pio test -e native` exits 0; `grep -rn 'malloc\\|new ' shim/lib/DroidputterShim/src/dp_display.cpp | grep -v '//' | wc -l` prints 0 (no per-write allocation).",
       "Verify: all four commands exit 0 with the stated output."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "verification",
