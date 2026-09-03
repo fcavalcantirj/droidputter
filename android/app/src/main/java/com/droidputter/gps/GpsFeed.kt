@@ -78,6 +78,16 @@ class GpsFeed(
             0f,
             locationListener,
         )
+        // Indoors the phone often has only a network/fused fix and raw GPS never arrives; feed
+        // those fixes through the same synthesized-NMEA path so the ESP still gets a position.
+        runCatching {
+            locationManager.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER,
+                LOCATION_UPDATE_INTERVAL_MS,
+                0f,
+                locationListener,
+            )
+        }
         onStatus(GpsFeedStatus(active = true, lastSentence = null, lastSource = null, satellitesInUse = 0))
     }
 
