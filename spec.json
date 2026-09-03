@@ -365,7 +365,7 @@
       "Document the overlay pattern (lib_extra_dirs + -DDROIDPUTTER=1 + 3-line hook), the M5GFX/M5Cardputer version constraints, what breaks (apps that talk to the panel bus directly, TFT_eSPI apps: not covered yet), and how to add the result to apps/catalog.json.",
       "Verify: docs/PORTING.md exists and names the three overlay ingredients."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "device",
