@@ -419,7 +419,7 @@
     "steps": [
       "Verify: README links docs/PROTOCOL.md, docs/PORTING.md, docs/FLASHING.md and apps/catalog.json."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "docs",

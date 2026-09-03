@@ -1,108 +1,108 @@
 # DROIDPUTTER
 
-> **"Cardputer my Android."**
+Plug an ESP32-S3 into an Android phone over USB-OTG, open one app, and the
+phone becomes the Cardputer: the ESP runs the app, the phone IS its screen,
+keyboard, GPS and app launcher. The ESP needs no display or keyboard of its
+own — a bare ESP32-S3 (the Cardputer's StampS3 class, 8 MB flash) is the
+target; a real Cardputer ADV is used in dev only because its own TFT gives
+ground truth next to the phone.
 
-**Turn your Android phone into the screen, keyboard, and sensors for an ESP32 pocket computer.**
-Flagship target: the M5Stack **Cardputer / Cardputer ADV**. One line: *the Flipper Zero mobile app,
-but for the Cardputer.*
+Proven on hardware (2026-09-02/03, see [progress.txt](./progress.txt) S1–S5
+and the phone-pass entries): a patched M5GFX 0.2.27 / M5Cardputer 1.1.1
+**shim** tees every pixel write over USB-CDC and merges KEY frames injected
+from the phone. Any open-source Cardputer app, rebuilt against the shim
+UNCHANGED, becomes a transparent phone mirror — no per-app protocol code.
+Bruce firmware is **not** part of this project (never a dependency); see the
+appendix in [SPEC.md](./SPEC.md) for why it's prior art only.
 
-→ Full design in **[SPEC.md](./SPEC.md)**.
+## Demo
 
-Status: **idea + spec.** Private working repo. No code yet.
+Pense-Bem (an unmodified third-party Cardputer app) played entirely from the
+phone — soft keyboard tap driving the ESP, screen mirrored live:
 
----
+| | |
+|---|---|
+| ![first render](docs/img/phone-first-render.png) | ![live gameplay](docs/img/phone-operacao-live.png) |
+| ![soft keyboard](docs/img/phone-adicao-softkeys.png) | ![demo replay](docs/img/demo-replay.png) |
 
-## The idea — verbatim (Felipe, 2026-09-02)
+A 30 s screen recording exists at `docs/img/phone-demo.mp4` (git-ignored,
+6.4 MB — regenerate with `adb shell screenrecord` per
+[progress.txt](./progress.txt)'s end-to-end entry rather than pulling it from
+git).
 
-> Dude, wtf, I had an peculiar idea. Think with me.
->
-> 1. Small screen on cardputter adv.
-> 2. there is a git with a remote controller, for ios, supposedly working
-> WHY don't we create an android app, cardputter my android?
-> Basically you connect correct esp32, and the mobile screen works as the cardputter screen -
-> basically, everything that works on cardputter without Lora should work. Including GPS maybe.
-> Is it possible? Anything similar?
+## How it works
 
-**Verdict:** yes, it's possible — and a large part of it already exists (see prior art). The concept
-is proven by the Flipper Zero mobile app; the ESP side already streams its screen on Bruce firmware;
-phone-GPS-to-ESP is a solved pattern.
+- **Wire protocol** — [docs/PROTOCOL.md](./docs/PROTOCOL.md): framing,
+  frame types (HELLO/FILL/RECT/RECT_RLE/STATS/PING, KEY/GPS_NMEA/HELLO_ACK),
+  bandwidth budget, measured throughput.
+- **Shim mechanism** — [shim/README.md](./shim/README.md): which functions
+  are patched and why, the overlay recipe, the virtual no-display panel
+  (`Panel_Droidputter`), version pins.
+- **Fixtures** — [fixtures/README.md](./fixtures/README.md): captured real
+  USB streams committed to the repo and replayed by both the Kotlin test
+  suite and the app's offline demo mode.
 
----
+## Build a shim overlay for your own app
 
-## Prior art & references (what each one proves)
+Full recipe: [docs/PORTING.md](./docs/PORTING.md). Short version — three
+ingredients on top of your app's unmodified source:
 
-### The exact pattern — phone as a device's screen + input
-- **Flipper Zero Mobile App** — streams the Flipper screen + remote input over BLE; open source,
-  iOS + Android. *This is Androputer's blueprint.*
-  - Docs: https://docs.flipper.net/zero/mobile-app
-  - F-Droid (Android, open source): https://f-droid.org/en/packages/com.flipperdevices.app/
-  - App Store: https://apps.apple.com/app/id1534655259
-- **Flipper RPC protocol (protobuf)** — the clean serial/BLE framing to model our protocol on:
-  - Protobuf defs: https://github.com/flipperdevices/flipperzero-protobuf
-  - Rust RPC client: https://github.com/elijah629/flipper-rpc
-  - Desktop manager (USB serial + BLE, Tauri): https://github.com/fuckmaz/FlipperUI
-  - Web (Web Serial, screen mirror via protobuf `ScreenMirror.js`): https://github.com/bruno-civongroup/flipper-zero-interface
-  - Python bindings: https://github.com/flipperdevices/flipperzero_protobuf_py
+```ini
+[platformio]
+src_dir = /path/to/the/unmodified/app/src
+lib_extra_dirs = ../../shim/lib
 
-### The ESP side already exists (flagship firmware)
-- **Bruce WebUI "Navigator"** — mirrors the Cardputer screen + takes keyboard input over WiFi to a
-  browser (`http://bruce.local`). Tier-1 MVP can wrap this with no firmware change.
-  - Wiki: https://wiki.bruce.computer/controlling-device/webui/
-  - Source (Wiki md): https://github.com/BruceDevices/Wiki/blob/main/docs/controlling-device/webui.md
-  - Bruce firmware: https://github.com/pr3y/Bruce  ·  releases: https://github.com/BruceDevices/firmware/releases
+[env:m5cardputer]
+lib_deps =
+    m5stack/M5Unified@0.2.20
+    symlink://../../shim/lib/DroidputterShim
+build_flags =
+    -DDROIDPUTTER=1
+    -I ../../shim/lib/DroidputterShim/src
+```
 
-### Screen mirroring on the exact board
-- **Zeloksa/WiFi-Remote-Display-ADV** — ultra-low-latency screen mirroring for the Cardputer ADV
-  (UDP streaming engine). NOTE: mirrors **PC → Cardputer** (reverse of us), but proves the streaming
-  stack + latency budget on this silicon.
-  - https://github.com/Zeloksa/WiFi-Remote-Display-ADV
-  - Thread: https://community.m5stack.com/topic/8187/cardputer-wifi-remote-display-adv-v1-0-open-source-screen-mirroring-payload
-- **aayushchouhan24/ESP32-Screen-Mirroring** — ESP32 framebuffer streaming over WiFi with
-  auto-discovery: https://github.com/aayushchouhan24/ESP32-Screen-Mirroring
-- **botofancalin/ESP32_Camera_System** — WiFi video ESP32→ESP32 TFT (SPI-TFT fps limits noted):
-  https://github.com/botofancalin/ESP32_Camera_System
-- **skyvense/ESP-Remote-Monitor** — simple/fast ESP32 screen streaming (MQTT):
-  https://github.com/skyvense/ESP-Remote-Monitor
+```sh
+shim/apply.sh apps/<your-app> /path/to/m5cardputer/libdeps   # materialises patched lib/M5GFX + lib/M5Cardputer
+cd apps/<your-app> && pio run -e m5cardputer
+```
 
-### Phone GPS → ESP (the "GPS maybe" part)
-- **coniferconifer/ESP32-GPS-BTserial** — NMEA between ESP32 and Android over BT serial (use an
-  external GPS as Android's GPS — invert it and the phone feeds the ESP):
-  https://github.com/coniferconifer/ESP32-GPS-BTserial
-- **mrichar1/esp32-gps** — ESP32 GPS over USB serial / BT / RTK / NTRIP / ESP-NOW:
-  https://github.com/mrichar1/esp32-gps
-- **Marauder external-GPS mod** (firmware accepts external GPS over serial for wardriving):
-  https://github.com/justcallmekoko/ESP32Marauder/wiki/gps-modification
-- **ESP32-DIV GPS wardriver**: https://github.com/cifertech/ESP32-DIV/wiki/GPS-Wardriver
+See `apps/pense-bem/` (a private app, unmodified) and `apps/m5-example/`
+(the M5Cardputer library's own upstream example) for two working overlays.
 
-### Cardputer ADV hardware (grounds the spec)
-- M5Stack Cardputer-Adv product/docs: https://docs.m5stack.com/en/core/Cardputer-Adv  ·
-  https://shop.m5stack.com/products/m5stack-cardputer-adv-version-esp32-s3
-- Specs recap (ESP32-S3FN8, 1.14" 240×135 ST7789V2, 56-key, ES8311, BMI270, 1750 mAh):
-  https://www.cnx-software.com/2025/10/23/m5stack-cardputer-adv-esp32-s3-computer-gains-improved-antenna-larger-1750-mah-battery-es8311-audio-codec/
-- ESPP board reference: https://esp-cpp.github.io/espp/dev_boards/m5stack/m5stack_cardputer.html
+## Flash from a phone
 
-### Adjacent / ecosystem
-- Cardputer Ultimate Remote (IR profiles; not phone-remote, but ecosystem): https://github.com/geo-tp/Ultimate-Remote
-- M5Stack Tab5 Android console (mirror/control Android over USB/WiFi): https://www.hackster.io/hiroki_kawakami/m5stack-tab5-android-console-cc265b
+No native flasher yet — the Android app hands off the built `.bin` parts to
+any third-party ESP32 flasher (e.g. Play Store `ESP32_Flasher`) via the
+share sheet, or you flash manually with the offsets below. Full detail,
+including the phone-side "Catalog" share flow: [docs/FLASHING.md](./docs/FLASHING.md).
 
-### Kindred name, DIFFERENT mechanism (do not confuse with Androputer)
-- **"Phoneputer"** (MWLabs) — installs **NixOS / full Linux on an old Android phone** (OnePlus 6) +
-  a wireless keyboard → the *phone itself* becomes a standalone Linux pocket computer. **No ESP32,
-  no Cardputer, no mirroring.** Validates the *cultural itch* (people want a "real" pocket computer),
-  not our mechanism (phone as screen/brain-companion for an ESP running radio firmware). Also: the
-  name "Phoneputer" is **taken**.
-  - Article: https://www.hackster.io/news/turn-your-phone-into-a-phoneputer-47027edb8224
-  - Repo: https://github.com/mwlaboratories/phoneputer
+| File             | Offset  |
+|------------------|---------|
+| `bootloader.bin` | `0x0`   |
+| `partitions.bin` | `0x8000`|
+| `boot_app0.bin`  | `0xE000`|
+| `firmware.bin`   | `0x10000`|
 
-### Community demand signal
-- r/CardPuter — *"Any way to load M5 Launcher from Android phone"* (people want the **Launcher**,
-  not just Bruce, reachable from Android — the exact demand for the M5GFX-shim path):
-  https://www.reddit.com/r/CardPuter/comments/1oz8hqj/any_way_to_load_m5_launcher_from_android_phone/
+Every droidputter-ready build is listed with its parts, offsets and sha256
+in [apps/catalog.json](./apps/catalog.json) (regenerate with
+`python3 tools/make_catalog.py`).
 
----
+## Status per board
 
-## Next step
+| Board | Real panel build | Virtual (no-display) build | Hardware verified | Notes |
+|---|---|---|---|---|
+| Cardputer / Cardputer ADV (ESP32-S3) | `m5cardputer` | `m5cardputer-virtual` | [REAL] — S1–S5, phone end-to-end | Flagship dev target |
+| M5Stack StickS3 (ESP32-S3-PICO-1-N8R8) | `m5stack-sticks3` | `m5stack-sticks3-virtual` | build-only [UAT pending] | Toolchain-only proof this session; needs the physical unit for the hardware UAT |
+| ESP32-C5 | — | — | blocked | `espressif32@6.12.0` (arduino-esp32 2.0.17) has no C5 board defs; needs arduino-esp32 3.x, a repo-wide platform re-pin, out of scope so far |
+| Bare ESP32-S3-N16R8 devkit | `esp32-s3-devkitc-1-virtual` | same | build-only [UAT pending] | The north-star board: no display of its own, phone is the only screen; reserved for esp-claw, needs Felipe's explicit OK before hardware use |
 
-Nothing is committed to code. Open decision for Felipe: greenlight **M1** (Tier-1 WiFi mirror against
-stock Bruce — proves the whole idea with zero firmware change), and decide public-vs-private + the
-public name. See [SPEC.md](./SPEC.md) → *Roadmap* and *Open questions*.
+## Repo layout
+
+`shim/` (PlatformIO library: patched M5GFX + M5Cardputer + USB framing),
+`tools/` (host-side Python receiver/renderer/catalog scripts), `fixtures/`
+(captured real streams, committed), `apps/` (build recipes per app +
+`catalog.json`), `android/` (Gradle project: `core` pure-JVM Kotlin +
+`app` Android/Compose shell), `docs/`.
+
+Ground rules and golden rules: [docs/GROUND_RULES.md](./docs/GROUND_RULES.md).
+Roadmap: [SPEC.md](./SPEC.md).
