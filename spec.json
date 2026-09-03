@@ -338,7 +338,7 @@
       "Record a 30 s screen recording via `adb shell screenrecord` into docs/img/demo.mp4 (git-ignored if > 5 MB; link it in README).",
       "Verify: progress.txt has the end-to-end [REAL] line with a latency number."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "catalog",
