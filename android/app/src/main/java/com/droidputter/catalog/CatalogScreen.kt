@@ -62,7 +62,7 @@ fun CatalogScreen(
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(entries) { entry ->
                         OutlinedButton(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
-                            Text("${verdictMark(summaryOf(entry))} ${entry.name} — ${entry.env} (${entry.board})")
+                            Text("${verdictMark(summaryOf(entry))} ${entry.name} — ${entry.env} (${entry.board})" + if (licenseUndeclared(entry)) "  \u00B7 no license" else "")
                         }
                     }
                 }
@@ -112,6 +112,15 @@ private fun CatalogDetail(
         Text(entry.description)
         Text("Source: ${entry.sourceRepo}")
         Text("License: ${entry.license}")
+        if (licenseUndeclared(entry)) {
+            // A public catalog of other people's builds: no declared license = no redistribution grant.
+            // 162 of the 394 Launcher-catalog repos have none (ARCH context 2026-09-03), so say it plainly.
+            Text(
+                "\u26A0 No license declared by the author: this build is here for evaluation only; " +
+                    "redistribution rights are not granted. Ask the author at the source link.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         if (summary != null) {
             Text(
                 "${verdictMark(summary)} ${summary.label}" +
@@ -159,3 +168,7 @@ private fun verdictMark(summary: VerdictSummary?): String = when (summary?.statu
     VerdictSummary.Status.MIXED -> "\u26A0"
     else -> "\u00B7"
 }
+
+/** True for catalog entries whose upstream declares no license (tools/make_catalog.py writes "none declared (...)"). */
+private fun licenseUndeclared(entry: CatalogEntry): Boolean =
+    entry.license.startsWith("none declared") || entry.license.startsWith("NOASSERTION")
