@@ -35,5 +35,18 @@
             android:name=".link.LinkForegroundService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- Catalog screen's "Share to flasher": hands bin-part bytes to ESP32_Flasher (or any
+             installed flasher) via a content:// URI, never a raw file:// path (blocked by
+             FileUriExposedException on modern Android). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

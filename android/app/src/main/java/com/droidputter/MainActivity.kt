@@ -1,6 +1,7 @@
 package com.droidputter
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
@@ -28,7 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.droidputter.catalog.CatalogRepository
+import com.droidputter.catalog.CatalogScreen
 import com.droidputter.connection.ConnectionScreen
+import com.droidputter.core.catalog.CatalogEntry
 import com.droidputter.core.keys.AndroidKeyMap
 import com.droidputter.core.keys.encodeKey
 import com.droidputter.core.link.LinkAction
@@ -80,6 +84,8 @@ class MainActivity : ComponentActivity() {
     )
     private var linkRates: LinkRates by mutableStateOf(LinkRates(0.0, 0.0, 0))
     private var showConnectionScreen: Boolean by mutableStateOf(false)
+    private var showCatalogScreen: Boolean by mutableStateOf(false)
+    private val catalogRepository: CatalogRepository by lazy { CatalogRepository(this) }
 
     private var gpsStatus: GpsFeedStatus by mutableStateOf(
         GpsFeedStatus(active = false, lastSentence = null, lastSource = null, satellitesInUse = 0),
@@ -122,6 +128,13 @@ class MainActivity : ComponentActivity() {
                             onToggleGps = ::toggleGpsFeed,
                             onClose = { showConnectionScreen = false },
                         )
+                    } else if (showCatalogScreen) {
+                        CatalogScreen(
+                            entries = remember { catalogRepository.loadEntries() },
+                            binPartsAvailable = catalogRepository::hasBinParts,
+                            onShare = ::shareCatalogEntry,
+                            onClose = { showCatalogScreen = false },
+                        )
                     } else {
                         Column(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(1f).padding(0.dp)) {
@@ -131,6 +144,12 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
                                 ) {
                                     Text(connectionStatus.state.name)
+                                }
+                                Button(
+                                    onClick = { showCatalogScreen = true },
+                                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+                                ) {
+                                    Text("Catalog")
                                 }
                                 // Demo replay only when no device is attached: while a USB link is
                                 // up it would feed a recording into the live screen model.
@@ -247,6 +266,15 @@ class MainActivity : ComponentActivity() {
         if (connectionStatus.state == LinkState.LINKED) {
             transport?.write(encodeGpsNmea(sentence))
         }
+    }
+
+    /** Catalog screen's "Share to flasher": no droidputter-native flashing code (see
+     * docs/FLASHING.md "Catalog hand-off") -- just a standard Android share sheet carrying the
+     * bin parts as content:// streams plus the offsets as text, to whatever flasher the user
+     * has installed (ESP32_Flasher, verified [REAL] in S4b). */
+    private fun shareCatalogEntry(entry: CatalogEntry) {
+        val intent = catalogRepository.buildShareIntent(entry)
+        startActivity(Intent.createChooser(intent, "Flash ${entry.name} (${entry.env})"))
     }
 
     /** Shared by the soft keyboard and hardware-keyboard passthrough below: both just need to

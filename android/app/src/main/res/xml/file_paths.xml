@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- CatalogRepository copies bin parts here before sharing them (content:// URIs, never a
+         raw file:// path) to whichever flasher app the user picks from the share sheet. -->
+    <cache-path name="catalog_share" path="catalog_share/" />
+</paths>

@@ -6,6 +6,7 @@
     "description": "Pense-Bem rebuilt against the droidputter shim, real ST7789 panel + physical keyboard tee'd over USB-CDC.",
     "source_repo": "/Users/fcavalcanti/dev/m5/cardputter-pense-pem",
     "license": "unlicensed (private repo, Felipe Cavalcanti)",
+    "build_dir": "apps/pense-bem/.pio/build/m5cardputer",
     "parts": [
       {
         "offset": "0x0",
@@ -40,6 +41,7 @@
     "description": "Pense-Bem on Panel_Droidputter (no physical display driven): the phone is the only screen.",
     "source_repo": "/Users/fcavalcanti/dev/m5/cardputter-pense-pem",
     "license": "unlicensed (private repo, Felipe Cavalcanti)",
+    "build_dir": "apps/pense-bem/.pio/build/m5cardputer-virtual",
     "parts": [
       {
         "offset": "0x0",
@@ -74,6 +76,7 @@
     "description": "M5Cardputer library's own Basic/keyboard/inputText example rebuilt against the shim, unmodified.",
     "source_repo": "https://github.com/m5stack/M5Cardputer.git",
     "license": "MIT (m5stack/M5Cardputer)",
+    "build_dir": "apps/m5-example/.pio/build/m5cardputer",
     "parts": [
       {
         "offset": "0x0",
@@ -108,6 +111,7 @@
     "description": "Same inputText example rebuilt for the M5Stack StickS3 (ESP32-S3-PICO-1-N8R8, PSRAM opi).",
     "source_repo": "https://github.com/m5stack/M5Cardputer.git",
     "license": "MIT (m5stack/M5Cardputer)",
+    "build_dir": "apps/m5-example/.pio/build/m5stack-sticks3",
     "parts": [
       {
         "offset": "0x0",

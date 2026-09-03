@@ -356,7 +356,7 @@
       "Until a native flasher exists (later milestone), the app shares the bin parts + a text with the offsets to any installed flasher app via the Android share sheet. Document this hand-off in docs/FLASHING.md.",
       "Verify: `./gradlew :app:assembleDebug` exits 0. Hardware: sharing Pense-Bem parts to ESP32_Flasher and flashing them boots Pense-Bem (record [REAL]); UAT line if no phone."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "catalog",

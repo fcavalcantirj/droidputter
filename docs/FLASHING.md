@@ -46,9 +46,27 @@ entry worked ("Sync Success"), ESP32-S3 rev 0.10 detected, firmware
 504,176 B compressed to 303,684 B, flashed in 19.39 s, device reset and
 booted straight into Pense-Bem.
 
-## Catalog hand-off (future milestone)
+## Catalog hand-off (implemented, 2026-09-02)
 
-Once `apps/catalog.json` exists, the Android app will share the bin parts +
-an offsets text blob to any installed flasher via the Android share sheet,
-rather than shipping its own flashing code. See the "Catalog screen in the
-app" task in spec.json.
+The Android app's Catalog screen (`android/app/.../catalog/`) reads the
+bundled `apps/catalog.json` asset and, for whichever entries were built
+locally when `./gradlew :app:assembleDebug` ran, their bin parts too — the
+Gradle build (`copyCatalogManifest`/`copyCatalogBins` in `android/app/build.gradle.kts`)
+copies each entry's `bootloader.bin`/`partitions.bin`/`firmware.bin` from its
+`apps/<app>/.pio/build/<env>/` and `boot_app0.bin` from the PlatformIO
+toolchain package into `assets/catalog/<name>-<env>/`, keyed by the
+`build_dir` field `tools/make_catalog.py` now writes into each entry. An
+entry whose parts weren't bundled (fresh clone, or a board nobody has built
+this session) shows in the list with its metadata but has "Share to flasher"
+disabled.
+
+Tapping "Share to flasher" on an available entry copies its four bin files
+into the app's cache dir, wraps them as `content://` URIs via a
+`FileProvider` (`android/app/src/main/res/xml/file_paths.xml`, never a raw
+`file://` path — blocked by `FileUriExposedException` on modern Android),
+and fires `Intent.ACTION_SEND_MULTIPLE` with those URIs plus an
+`EXTRA_TEXT` offsets blob (same offset table as above, plus each part's
+sha256) through `Intent.createChooser`. Any installed flasher — ESP32_Flasher
+today — appears in the share sheet; the app still has no flashing code of
+its own, exactly as the "future milestone" note above originally scoped it.
+See the "Catalog screen in the app" task in spec.json.

@@ -102,6 +102,7 @@ def build_entry(app: dict) -> dict:
         "description": app["description"],
         "source_repo": app["source_repo"],
         "license": app["license"],
+        "build_dir": app["build_dir"],
         "parts": parts,
     }
 
