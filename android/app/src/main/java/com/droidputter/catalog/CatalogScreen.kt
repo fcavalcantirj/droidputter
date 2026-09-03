@@ -1,5 +1,6 @@
 package com.droidputter.catalog
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +43,9 @@ fun CatalogScreen(
 ) {
     var selected: CatalogEntry? by remember { mutableStateOf(null) }
     val current = selected
+    // System back: detail -> list -> mirror. Without this the gesture finishes the activity
+    // (and drops the link); with 11 entries the list also pushed the Back button off-screen.
+    BackHandler { if (selected != null) selected = null else onClose() }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Text("Catalog", style = MaterialTheme.typography.headlineSmall)
@@ -51,7 +55,7 @@ fun CatalogScreen(
             if (entries.isEmpty()) {
                 Text("(no entries in apps/catalog.json)")
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(entries) { entry ->
                         OutlinedButton(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
                             Text("${entry.name} — ${entry.env} (${entry.board})")

@@ -383,5 +383,285 @@
         "sha256": "e05682c813127d430aea19d30eaa80dbc1ede7096eed5d73bc584b0c92c78584"
       }
     ]
+  },
+  {
+    "name": "m5-palnagotchi",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Palnagotchi (Pwnagotchi companion, .ino, libs inferred) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/viniciusbo/m5-palnagotchi.git",
+    "license": "MIT (viniciusbo/m5-palnagotchi)",
+    "build_dir": "apps/m5-palnagotchi/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 842928,
+        "sha256": "74a553a62e850e5b3a0643d810787e6a001c0f900af65eb80527c0836fab221c"
+      }
+    ]
+  },
+  {
+    "name": "cardputer",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "VolosR/Cardputer sketches (.ino) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/VolosR/Cardputer.git",
+    "license": "none declared (VolosR/Cardputer)",
+    "build_dir": "apps/cardputer/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 693888,
+        "sha256": "0a0f54244912f9a9a686a5b6346289edb733dbd57f4f1a3f02e72dd2c18bf3a0"
+      }
+    ]
+  },
+  {
+    "name": "m5cardputer_audiospectrum",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Audio spectrum analyser on the Cardputer mic (.ino) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/cyberwisk/m5Cardputer_audiospectrum.git",
+    "license": "GPL-3.0 (cyberwisk/m5Cardputer_audiospectrum)",
+    "build_dir": "apps/m5cardputer_audiospectrum/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 495776,
+        "sha256": "99b4c30f6ba26527dbc7610be4f20c8d11653e79d85fb95cb0757f6c1adca310"
+      }
+    ]
+  },
+  {
+    "name": "cardputer-system-monitor",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "System monitor (.ino) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/gdantas04/Cardputer-System-Monitor.git",
+    "license": "none declared (gdantas04/Cardputer-System-Monitor)",
+    "build_dir": "apps/cardputer-system-monitor/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1361104,
+        "sha256": "2c2f2017bf69cf175d47c4afbf60b0a9bf13e01db5417b924d73009f5411bc41"
+      }
+    ]
+  },
+  {
+    "name": "miniacid",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "miniacid (TB-303 style acid synth, .ino + src/) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/urtubia/miniacid.git",
+    "license": "MIT (urtubia/miniacid)",
+    "build_dir": "apps/miniacid/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 748144,
+        "sha256": "37baff4a67dd03f550b093332f333f61c71494e5e56c1e5043bd80822129f71f"
+      }
+    ]
+  },
+  {
+    "name": "m5cardputer_webradio",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Web radio (WiFi internet radio to the Cardputer speaker, .ino) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/cyberwisk/M5Cardputer_WebRadio.git",
+    "license": "none declared (cyberwisk/M5Cardputer_WebRadio)",
+    "build_dir": "apps/m5cardputer_webradio/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1273568,
+        "sha256": "d36e61f6d69b90167fb752da1b8c874c8056fad2165834f820f373abb0d0c6cc"
+      }
+    ]
+  },
+  {
+    "name": "cardputergpsmap",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "GPS map (TinyGPS++ + JPEG tiles, .ino) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/lunarc3/CardputerGPSMap.git",
+    "license": "GPL-3.0 (lunarc3/CardputerGPSMap)",
+    "build_dir": "apps/cardputergpsmap/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 591200,
+        "sha256": "e5d622d07f78cf71f66aae127a995955d081e7c758ebbf3cfbe7003fc7e8aa75"
+      }
+    ]
+  },
+  {
+    "name": "tiny-journal",
+    "board": "m5stack-stamps3",
+    "env": "m5cardputer",
+    "description": "Tiny Journal (notes with BLE keyboard, NimBLE 2.x, .ino) rebuilt via tools/overlay.py.",
+    "source_repo": "https://github.com/joejee90/Tiny-Journal.git",
+    "license": "none declared (joejee90/Tiny-Journal)",
+    "build_dir": "apps/tiny-journal/.pio/build/m5cardputer",
+    "parts": [
+      {
+        "offset": "0x0",
+        "file": "bootloader.bin",
+        "size": 15104,
+        "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343"
+      },
+      {
+        "offset": "0x8000",
+        "file": "partitions.bin",
+        "size": 3072,
+        "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+      },
+      {
+        "offset": "0xe000",
+        "file": "boot_app0.bin",
+        "size": 8192,
+        "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+      },
+      {
+        "offset": "0x10000",
+        "file": "firmware.bin",
+        "size": 1384624,
+        "sha256": "a21c89b9608882b3a0fce3db61c5d3015f827c9c0cfba7e5a7dbc95a07b5b3d8"
+      }
+    ]
   }
 ]
