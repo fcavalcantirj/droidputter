@@ -30,10 +30,32 @@ android {
     buildFeatures {
         compose = true
     }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(layout.buildDirectory.dir("generated/demoAssets"))
+        }
+    }
 }
 
 kotlin {
     jvmToolchain(17)
+}
+
+// Demo mode (no USB) replays fixtures/pense-bem/boot.{bin,jsonl} through FixtureTransport;
+// bundle it as an asset from the repo's tracked copy instead of committing a second one under
+// android/ (the repo .gitignore blankets *.bin except fixtures/**/*.bin).
+val demoFixtureSrc = rootProject.projectDir.parentFile.resolve("fixtures/pense-bem")
+
+val copyDemoFixture by tasks.registering(Copy::class) {
+    from(demoFixtureSrc) {
+        include("boot.bin", "boot.jsonl")
+    }
+    into(layout.buildDirectory.dir("generated/demoAssets/fixtures/pense-bem"))
+}
+
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("Assets")) dependsOn(copyDemoFixture)
 }
 
 dependencies {

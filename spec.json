@@ -298,7 +298,7 @@
       "Demo mode (no USB): a 'Replay fixture' button plays fixtures/pense-bem/boot.jsonl through FixtureTransport so the renderer is verifiable on the emulator.",
       "Verify: `./gradlew :app:assembleDebug` exits 0; on the AVD `Medium_Phone_API_36.1` the demo replay shows the Pense-Bem screen (screenshot saved via `adb exec-out screencap -p > docs/img/demo-replay.png`)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "app",
