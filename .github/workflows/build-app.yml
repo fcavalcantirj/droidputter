@@ -24,12 +24,25 @@ on:
         required: false
         default: ""
         type: string
+      request_id:
+        description: "opaque id set by the build proxy so it can find this run again (shows in the run name)"
+        required: false
+        default: ""
+        type: string
+      shim:
+        description: "shim commit the proxy expects (informational, shows in the run name)"
+        required: false
+        default: ""
+        type: string
+
+# The proxy (proxy/, deployed on Vercel) correlates its request with this run by the run name.
+run-name: "build ${{ inputs.repo }}@${{ inputs.ref || 'HEAD' }} shim=${{ inputs.shim || '?' }} req=${{ inputs.request_id || '-' }}"
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-app-${{ inputs.name }}
+  group: build-app-${{ inputs.name }}-${{ inputs.request_id || 'manual' }}
   cancel-in-progress: false
 
 env:
@@ -91,6 +104,8 @@ jobs:
           name: ${{ inputs.name }}-m5cardputer
           path: dist/
           if-no-files-found: error
+          # The artifact is a build CACHE the proxy streams from, not a distribution channel: a week is plenty.
+          retention-days: 7
 
       - name: Build log tail (on failure)
         if: failure()
