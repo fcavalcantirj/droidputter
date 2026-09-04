@@ -1,0 +1,99 @@
+# On-demand shim build of any catalog repo ("recompile on the fly", spike S3): rebuilds a Cardputer app
+# from its upstream GitHub source against the droidputter shim (tools/overlay.py + shim/apply.sh) on a
+# GitHub runner -- no Mac involved -- and uploads the flashable parts as ONE artifact.
+#
+#   gh workflow run build-app.yml -f repo=wisnc/stellar-map -f name=stellar-map [-f ref=<branch|tag|sha>]
+#
+# Publishing the parts to a release / the catalog is a LATER step: it needs the founder's decision on
+# tags and releases (rolling tag vs orphan branch vs LauncherHub upload) -- this workflow never tags.
+name: build-app
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "upstream GitHub repo, owner/name (e.g. wisnc/stellar-map)"
+        required: true
+        type: string
+      name:
+        description: "overlay dir name under apps/ (e.g. stellar-map)"
+        required: true
+        type: string
+      ref:
+        description: "optional upstream git ref: branch, tag or full 40-hex commit sha (default: the repo's default branch)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-app-${{ inputs.name }}
+  cancel-in-progress: false
+
+env:
+  ESPRESSIF32_VERSION: "6.12.0"   # the platform pin in tools/overlay.py ENV_TEMPLATE (arduino-esp32 2.0.17)
+  PLATFORMIO_VERSION: "6.1.19"    # the PlatformIO Core the Mac builds use, kept equal for sha256 comparisons
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REPO: ${{ inputs.repo }}
+      NAME: ${{ inputs.name }}
+      REF: ${{ inputs.ref }}
+    steps:
+      - name: Validate inputs
+        run: |
+          [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "bad repo: $REPO"; exit 1; }
+          [[ "$NAME" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "bad name: $NAME"; exit 1; }
+          [[ -z "$REF" || "$REF" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "bad ref: $REF"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO core dir (platform, toolchain, framework, global libs)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            !~/.platformio/.cache
+          key: ${{ runner.os }}-platformio-espressif32-${{ env.ESPRESSIF32_VERSION }}-pio${{ env.PLATFORMIO_VERSION }}
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --quiet "platformio==${PLATFORMIO_VERSION}"
+          pio --version
+
+      - name: Overlay + build (tools/overlay.py --build)
+        run: |
+          set -o pipefail
+          args=("$REPO" --name "$NAME" --build)
+          [ -n "$REF" ] && args+=(--ref "$REF")
+          python3 tools/overlay.py "${args[@]}" | tee overlay.out
+
+      - name: Collect artifact
+        run: |
+          B="apps/$NAME/.pio/build/m5cardputer"
+          mkdir -p dist
+          cp "$B/bootloader.bin" "$B/partitions.bin" "$B/firmware.bin" dist/
+          cp "$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin" dist/
+          tail -n 1 overlay.out > dist/build.json
+          (cd dist && sha256sum bootloader.bin partitions.bin boot_app0.bin firmware.bin | tee SHA256SUMS && ls -l)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.name }}-m5cardputer
+          path: dist/
+          if-no-files-found: error
+
+      - name: Build log tail (on failure)
+        if: failure()
+        run: |
+          echo "::group::overlay.py output"; cat overlay.out 2>/dev/null || echo "(none)"; echo "::endgroup::"
+          tail -n 200 "apps/$NAME/.pio/overlay-build.log" 2>/dev/null || echo "no apps/$NAME/.pio/overlay-build.log"

@@ -34,9 +34,22 @@ class PhoneFlasher(
 ) {
     private class RawPort(val port: UsbSerialPort, val connection: UsbDeviceConnection)
 
-    suspend fun flash(entry: CatalogEntry): Result<Unit> = withContext(Dispatchers.IO) {
-        val images = catalogRepository.loadImages(entry)
-        if (images.isEmpty()) return@withContext Result.failure(EspFlashException("no bin parts bundled for ${entry.name}"))
+    /** Flashes [entry]; success carries the sha256 of the firmware part actually written (the build's identity). */
+    suspend fun flash(entry: CatalogEntry): Result<String> = withContext(Dispatchers.IO) {
+        // Download (or read from the verified cache) BEFORE touching the link: a missing network or a
+        // stale catalog must never take the running USB session down.
+        val loaded = try {
+            catalogRepository.loadImages(entry, progress)
+        } catch (e: Exception) {
+            Log.w(TAG, "download failed: ${e.message}")
+            status("FAILED: ${e.message}")
+            return@withContext Result.failure(e)
+        }
+        val images = loaded.images
+        if (images.isEmpty()) {
+            status("FAILED: no bin parts for ${entry.name}")
+            return@withContext Result.failure(EspFlashException("no bin parts for ${entry.name}"))
+        }
         // Every attach while the raw session is open lands here (the ROM after the reset dance, and
         // possibly the app firmware after the hard reset); the flow takes what it needs in order.
         val reattached = Channel<RawPort>(Channel.UNLIMITED)
@@ -60,7 +73,7 @@ class PhoneFlasher(
             Thread.sleep(300)
             // Same port first (enumeration usually survives the reset); else wait for the re-attach.
             var romPort = current
-            var flasher = EspFlasher(UsbRomLink(romPort.port), onProgress = { msg, pct -> status(if (pct in 1..99) "$msg ($pct%)" else msg) })
+            var flasher = EspFlasher(UsbRomLink(romPort.port), onProgress = progress)
             val syncedOnSamePort = runCatching { flasher.sync(attempts = 5) }.isSuccess
             if (!syncedOnSamePort) {
                 status("waiting for the bootloader to re-enumerate")
@@ -68,7 +81,7 @@ class PhoneFlasher(
                 romPort = withTimeoutOrNull(10_000) { reattached.receive() }
                     ?: return@withContext Result.failure(EspFlashException("ROM bootloader did not come back on USB"))
                 current = romPort
-                flasher = EspFlasher(UsbRomLink(romPort.port), onProgress = { msg, pct -> status(if (pct in 1..99) "$msg ($pct%)" else msg) })
+                flasher = EspFlasher(UsbRomLink(romPort.port), onProgress = progress)
                 flasher.sync()
             }
             flasher.requireEsp32s3()
@@ -77,7 +90,7 @@ class PhoneFlasher(
             for (img in images) flasher.verify(img)
             status("all parts verified, rebooting the ESP")
             UsbRomLink(romPort.port).hardReset()
-            Result.success(Unit)
+            Result.success(loaded.firmwareSha256)
         } catch (e: Exception) {
             Log.w(TAG, "flash failed: ${e.message}")
             status("FAILED: ${e.message}")
@@ -105,6 +118,9 @@ class PhoneFlasher(
         Log.d(TAG, "flash: $s")
         onStatus(s)
     }
+
+    /** Download + ROM progress in one shape: "msg (pct%)" while in flight, bare message at the ends. */
+    private val progress: (String, Int) -> Unit = { msg, pct -> status(if (pct in 1..99) "$msg ($pct%)" else msg) }
 
     private companion object {
         const val TAG = "Droidputter"

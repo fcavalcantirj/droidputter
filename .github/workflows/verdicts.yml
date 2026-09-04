@@ -1,0 +1,77 @@
+# Community verdicts: the Droidputter app submits "works / broken" as a prefilled GitHub issue (label `verdict`,
+# title "[verdict] <name>/<env> <result> on <board> (<sha12>)", body = a ```json Verdict record). This workflow folds
+# every such issue into apps/verdicts.json on main, which the app reads live (VerdictRepository) -- so one person's
+# verdict reaches every other user without anyone merging by hand. The issue author and creation date are the
+# reporter/date of record; tools/fold_verdict.py validates and de-duplicates.
+name: verdicts
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: verdicts
+  cancel-in-progress: false
+
+jobs:
+  fold:
+    if: contains(github.event.issue.labels.*.name, 'verdict') || startsWith(github.event.issue.title, '[verdict]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Fold the issue into apps/verdicts.json
+        id: fold
+        # Issue text is untrusted: it reaches the shell only through environment variables, never interpolated.
+        env:
+          BODY: ${{ github.event.issue.body }}
+          REPORTER: ${{ github.event.issue.user.login }}
+          CREATED: ${{ github.event.issue.created_at }}
+        run: |
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          python3 tools/fold_verdict.py --body-file "$RUNNER_TEMP/body.md" --reporter "$REPORTER" \
+            --date "${CREATED:0:10}" --github-output || true
+
+      - name: Commit and push
+        if: steps.fold.outputs.status == 'folded'
+        env:
+          NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          git config user.name "droidputter-verdicts"
+          git config user.email "verdicts@users.noreply.github.com"
+          git add apps/verdicts.json
+          git commit -m "verdicts: #$NUMBER $(printf '%s' "$TITLE" | tr -cd '[:print:]' | cut -c1-100)"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Comment and close
+        if: steps.fold.outputs.status == 'folded' || steps.fold.outputs.status == 'duplicate'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          STATUS: ${{ steps.fold.outputs.status }}
+        run: |
+          if [ "$STATUS" = folded ]; then
+            MSG="Folded into apps/verdicts.json ($(git rev-parse --short HEAD)). The app picks it up on its next Catalog refresh. Thank you."
+          else
+            MSG="This exact verdict (same app, firmware hash, result and reporter) is already in apps/verdicts.json -- nothing to add. Thank you."
+          fi
+          gh issue comment "$NUMBER" --body "$MSG"
+          gh issue close "$NUMBER" --reason completed
+
+      - name: Flag an invalid report
+        if: steps.fold.outputs.status == 'invalid'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          REASON: ${{ steps.fold.outputs.reason }}
+        run: |
+          gh issue comment "$NUMBER" --body "Could not fold this verdict: $REASON. Edit the issue so the body carries the app's \`\`\`json block (name, env, firmware_sha256 = 64 hex, board, result works|broken) and this check re-runs."
+          gh issue edit "$NUMBER" --add-label verdict-invalid

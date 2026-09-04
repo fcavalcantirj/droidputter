@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Overlay generator: turn an open-source Cardputer app repo into a droidputter build overlay.
 
-    python3 tools/overlay.py <github-url | owner/repo> [--name NAME] [--env-src ENV] [--build] [--upload]
+    python3 tools/overlay.py <github-url | owner/repo> [--name NAME] [--ref REF] [--env-src ENV] [--build] [--upload]
 
-Clones the repo (shallow) into apps/_src/<name>/ (git-ignored), reads its platformio.ini (or finds
-its .ino), and writes apps/<name>/platformio.ini on the apps/pense-bem pattern: the app's own
-sources UNCHANGED via [platformio] src_dir, its own lib_deps kept except the display/keyboard
-libraries, which the shim provides patched (M5GFX 0.2.27 + M5Cardputer 1.1.1 in apps/<name>/lib via
-shim/apply.sh, M5Unified pinned to the version the shim is tested with) plus DroidputterShim.
+Clones the repo (shallow; --ref = branch, tag or full commit sha) into apps/_src/<name>/ (git-ignored),
+reads its platformio.ini (or finds its .ino), and writes apps/<name>/platformio.ini on the
+apps/pense-bem pattern: the app's own sources UNCHANGED via [platformio] src_dir, its own lib_deps kept
+except the display/keyboard libraries, which the shim provides patched (M5GFX 0.2.27 + M5Cardputer 1.1.1
+in apps/<name>/lib via shim/apply.sh, M5Unified pinned to the version the shim is tested with) plus
+DroidputterShim. Every path in the generated ini is anchored on PlatformIO's ${PROJECT_DIR} (the overlay
+dir), so the same ini builds on any checkout -- a Mac or a GitHub runner -- without regeneration.
 Prints one JSON line per app so a batch run can be tabulated. --build runs `pio run -e m5cardputer`
 and reports RAM/flash or the first compiler errors; --upload flashes the board on /dev/cu.usbmodem*.
 """
@@ -16,6 +18,7 @@ import configparser
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +26,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = REPO_ROOT / "apps" / "_src"
 APPS = REPO_ROOT / "apps"
-PIO = Path.home() / ".platformio" / "penv" / "bin" / "pio"
+PIO = Path.home() / ".platformio" / "penv" / "bin" / "pio"   # the PlatformIO installer's venv (Mac)
+if not PIO.exists():   # pip-installed PlatformIO (CI runner): plain `pio` on PATH
+    PIO = Path(shutil.which("pio") or "pio")
 SHIM_LIBS = re.compile(r"M5GFX|M5Cardputer|M5Unified", re.I)
 STD_FLAG = re.compile(r"^-std=")
 M5UNIFIED = "m5stack/M5Unified@0.2.20"   # the version the patched M5GFX 0.2.27 is tested with
@@ -132,11 +137,24 @@ def slug_of(url: str) -> str:
 
 def clone(slug: str, name: str, ref: str | None) -> Path:
     dst = SRC_ROOT / name
-    if not dst.exists():
-        SRC_ROOT.mkdir(parents=True, exist_ok=True)
-        cmd = ["git", "clone", "-q", "--depth", "1"] + (["--branch", ref] if ref else []) + [f"https://github.com/{slug}.git", str(dst)]
+    if dst.exists():
+        return dst
+    SRC_ROOT.mkdir(parents=True, exist_ok=True)
+    url = f"https://github.com/{slug}.git"
+    if ref and re.fullmatch(r"[0-9a-f]{40}", ref):   # a commit: `git clone --branch` takes only branches/tags
+        dst.mkdir()
+        for cmd in (["git", "init", "-q"], ["git", "remote", "add", "origin", url],
+                    ["git", "fetch", "-q", "--depth", "1", "origin", ref], ["git", "checkout", "-q", "FETCH_HEAD"]):
+            subprocess.run(cmd, cwd=dst, check=True)
+    else:
+        cmd = ["git", "clone", "-q", "--depth", "1"] + (["--branch", ref] if ref else []) + [url, str(dst)]
         subprocess.run(cmd, check=True)
     return dst
+
+
+def upstream_commit(src: Path) -> str:
+    r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=src, capture_output=True, text=True)
+    return r.stdout.strip() or "unknown"
 
 
 def read_ini(path: Path) -> configparser.ConfigParser | None:
@@ -163,18 +181,25 @@ def multiline(v: str) -> list[str]:
     return [ln.strip() for ln in v.strip().splitlines() if ln.strip() and not ln.strip().startswith(";")]
 
 
-def absolutize(flag: str, src: Path) -> str:
+def anchored(path: Path, app: Path) -> str:
+    """A path under apps/_src as PlatformIO sees it from the overlay dir: ${PROJECT_DIR}/../_src/<name>/...
+    (${PROJECT_DIR} is a PlatformIO built-in = the project dir), so the ini carries no machine-specific path."""
+    return "${PROJECT_DIR}/" + os.path.relpath(path, app)
+
+
+def anchor_flag(flag: str, src: Path, app: Path) -> str:
     """-I include / -I src style include paths in upstream flags are relative to ITS project dir."""
     m = re.match(r"^(-I|-include|-imacros)\s*(\S+)$", flag)
     if m and not m.group(2).startswith("/"):
-        return f"{m.group(1)} {src / m.group(2)}"
+        return f"{m.group(1)} {anchored(src / m.group(2), app)}"
     return flag
 
 
 def generate(slug: str, name: str, env_src: str | None, ref: str | None) -> dict:
     src = clone(slug, name, ref)
+    app = APPS / name
     cp = read_ini(src / "platformio.ini")
-    info = {"name": name, "repo": slug, "src": str(src)}
+    info = {"name": name, "repo": slug, "src": str(src), "upstream_commit": upstream_commit(src)}
     lib_deps, flags, extra_board, src_dir, extra_lib_dirs, src_filter, ldf_mode = [], [], [], None, [], "", "deep+"
     if cp:
         env = pick_env(cp, env_src)
@@ -189,13 +214,13 @@ def generate(slug: str, name: str, env_src: str | None, ref: str | None) -> dict
             f = re.sub(r"\s*;.*$", "", f)  # trailing ini comments
             if not f or STD_FLAG.match(f) and f in ("-std=gnu++11", "-std=gnu++14", "-std=c++11", "-std=c++14"):
                 continue
-            flags.append(absolutize(f, src))
+            flags.append(anchor_flag(f, src, app))
         for key in ("board_build.partitions", "board_build.embed_files", "board_build.embed_txtfiles"):
             v = cp.get(env, key, fallback=None)
             if v:
                 # built-in partition names (default_8MB.csv, ...) resolve inside the framework; only
-                # repo-relative files get absolutized
-                paths = [str(src / p) if not p.startswith("/") and (src / p).exists() else p for p in multiline(v)]
+                # repo-relative files get anchored on ${PROJECT_DIR}
+                paths = [anchored(src / p, app) if not p.startswith("/") and (src / p).exists() else p for p in multiline(v)]
                 extra_board.append(f"{key} = {paths[0]}" if len(paths) == 1 else f"{key} =\n" + "\n".join(f"    {p}" for p in paths))
     else:  # Arduino-IDE repo: the sketch dir is the source dir (PlatformIO compiles .ino)
         inos = sorted(src.rglob("*.ino"), key=lambda p: len(p.parts))
@@ -208,7 +233,7 @@ def generate(slug: str, name: str, env_src: str | None, ref: str | None) -> dict
         if unknown:
             info["unresolved_includes"] = unknown
         if (src / "libraries").is_dir():   # sketch-local library folder, Arduino-IDE style
-            extra_lib_dirs.append(str(src / "libraries"))
+            extra_lib_dirs.append(anchored(src / "libraries", app))
         # The Arduino IDE compiles the sketch folder's top-level files plus src/** -- not every
         # subfolder (miniacid ships an SDL desktop port next to the sketch).
         src_filter = "build_src_filter = +<*.ino> +<*.c> +<*.cpp> +<*.h> +<*.hpp> +<src/>\n"
@@ -226,18 +251,17 @@ def generate(slug: str, name: str, env_src: str | None, ref: str | None) -> dict
         if must not in flags:
             flags.append(must)
     if (src / "include").is_dir():
-        flags.append(f"-I {src / 'include'}")
-    if (APPS / name / "include").is_dir():   # overlay-side compat headers (e.g. a credentials.h the repo only ships as an example)
+        flags.append(f"-I {anchored(src / 'include', app)}")
+    if (app / "include").is_dir():   # overlay-side compat headers (e.g. a credentials.h the repo only ships as an example)
         flags.append("-I include")
     flags.append("-Wall")
     flags.append("-I ../../shim/lib/DroidputterShim/src")
     lib_deps = [M5UNIFIED] + lib_deps + ["symlink://../../shim/lib/DroidputterShim"]
-    lib_extra = ["    ../../shim/lib"] + ([f"    {src / 'lib'}"] if (src / "lib").is_dir() else []) + [f"    {d}" for d in extra_lib_dirs]
+    lib_extra = ["    ../../shim/lib"] + ([f"    {anchored(src / 'lib', app)}"] if (src / "lib").is_dir() else []) + [f"    {d}" for d in extra_lib_dirs]
 
-    app = APPS / name
     app.mkdir(parents=True, exist_ok=True)
     ini = ENV_TEMPLATE.format(
-        slug=slug, name=name, env_src=info["env_src"], src_dir=src_dir_abs,
+        slug=slug, name=name, env_src=info["env_src"], src_dir=anchored(src_dir_abs, app),
         lib_extra_dirs="\n".join(lib_extra),
         extra_board="".join(x + "\n" for x in extra_board),
         src_filter=src_filter, ldf_mode=ldf_mode,
@@ -247,9 +271,9 @@ def generate(slug: str, name: str, env_src: str | None, ref: str | None) -> dict
     (app / "platformio.ini").write_text(ini)
     info.update(app=str(app.relative_to(REPO_ROOT)), src_dir=str(src_dir_abs), lib_deps=lib_deps)
     if not (app / "lib" / "M5GFX").is_dir() or not (app / "lib" / "M5Cardputer").is_dir():
-        libsrc = Path.home() / ".platformio" / "lib"
-        cmd = ["bash", str(REPO_ROOT / "shim" / "apply.sh"), str(app)] + ([str(libsrc)] if (libsrc / "M5GFX").is_dir() and (libsrc / "M5Cardputer").is_dir() else [])
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        # apply.sh finds the pinned M5GFX/M5Cardputer versions in ~/.platformio/lib itself (downloading
+        # them once if absent), so no libdeps dir is passed any more.
+        r = subprocess.run(["bash", str(REPO_ROOT / "shim" / "apply.sh"), str(app)], capture_output=True, text=True)
         info["apply"] = "ok" if r.returncode == 0 else (r.stdout + r.stderr)[-800:]
     return info
 

@@ -1,0 +1,376 @@
+[
+  {
+    "fid": "9fb9a50e180cd108832b614a7751ba7b",
+    "name": "/BeatDestroyer/",
+    "description": "Multi-channel piano with glitches. Left and right switches octave. Up and down volume adjustment.",
+    "cover": "d635d0b8b77dc66c9d7c42d6758baae6.jpg",
+    "category": "cardputer",
+    "esp": "32",
+    "author": "AbdulKus",
+    "github": null,
+    "download": 2581,
+    "star": 0,
+    "versions": [
+      {
+        "version": "1.666666666666666666666666666666666666666666666666",
+        "published_at": "2024-04-27",
+        "file": "1c6807c2274b501ac80ecff6d4614fc8.bin",
+        "install": {
+          "format": "app"
+        }
+      }
+    ]
+  },
+  {
+    "fid": "d401aede34470a1331b5adad5d21674c",
+    "name": "Cardtastic",
+    "description": "Cardtastic is a simple, fast UI for Meshtastic nodes. It connects to a Meshtastic radio over BLE and focuses on chat, nodes, and channels without changing device configuration. Tested on Cardputer v1.1 and ADV.",
+    "cover": "3c399a5ea83912137820942900ee8e41.svg",
+    "category": "cardputer",
+    "esp": "s3",
+    "author": "reydeargentina",
+    "github": "https://github.com/reydeargentina/cardtastic",
+    "download": 307,
+    "star": 0,
+    "versions": [
+      {
+        "version": "0.2",
+        "published_at": "2026-01-14",
+        "file": "c934857cf6066d44e548c7d5f29ef292.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "0.3",
+        "published_at": "2026-01-16",
+        "file": "22edff616f7cc403bafeac8c99beb7bd.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "0.4",
+        "published_at": "2026-02-04",
+        "file": "ec376da2ea5f9791d2ca03a5a6b4a707.bin"
+      }
+    ]
+  },
+  {
+    "fid": "0e68bc7f8700c207e95609c1b7783d14",
+    "name": "Doom for Cardputer",
+    "description": "Controls: Forward: \";\" Backward: \".\" Left: \"L\" Right: ' Fire: opt Strafe left: ctrl Strafe right: alt Use: fn Map: tab Weapon: 1-7\nIncompatible with M5Launcher (will work on that)\nV Scroll down for details\n\nSave-load works with SD card\nSave-load crashes without SD card\n...\nSometimes crashes randomly\n\n\nCheats:\n - iddqd - god mode\n - idkfa - keys, weapons, armor\n - idc<x><y> - jump to level E<x>M<y> (eg. idc14 jumps to E1M4)\n\nDone\n - User input\n - Sounds (SFX)\n - Music\n - Save & Load\n - Optimize user input\n - Cheats!\n\nTo do\n - Load WAD from SD card (somehow, mmap?)\n - Fix minor music issues",
+    "cover": "087df6a4519ca8936e039526d0697201.jpg",
+    "category": "cardputer",
+    "esp": "s3",
+    "author": "romalik",
+    "github": "https://github.com/romalik/m5cardputer_doom",
+    "download": 34652,
+    "star": 1,
+    "versions": [
+      {
+        "version": "0.1",
+        "published_at": "2024-05-19",
+        "file": "a60760e72027967e13efca3c813dbb9c.bin",
+        "install": {
+          "format": "merged"
+        }
+      }
+    ]
+  },
+  {
+    "fid": "e6ddd6ee4d27df6a0d04e072b2b78312",
+    "name": "RuView",
+    "description": "yuhyuhyuhyuhyuhyuhyuh",
+    "cover": null,
+    "category": "cardputer",
+    "esp": "s3",
+    "author": "runtz",
+    "github": "https://github.com/ruvnet/RuView/releases/tag/v0.8.3-esp32",
+    "download": 126,
+    "star": 0,
+    "versions": [
+      {
+        "version": "0.9.3",
+        "published_at": "2026-06-28",
+        "file": "ae00a7ea15bc7ad38ab14262eae22efb.bin",
+        "install": {
+          "format": "app"
+        }
+      }
+    ]
+  },
+  {
+    "fid": "8dfe576c365e8b6a4510f1cb4ffa7594",
+    "name": "StampFly Firmware",
+    "description": "StampFly Firmware",
+    "cover": "43a22a862f463d1638478c44299e6232.png",
+    "category": "stamps3",
+    "esp": "s3",
+    "author": "M5Stack",
+    "github": "https://github.com/m5stack/M5StampFly",
+    "download": 1649,
+    "star": 0,
+    "versions": [
+      {
+        "version": "v1.0",
+        "published_at": "2024-07-31",
+        "file": "9528bf7656d8b4b844cc88aa101bd477.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v1.1.0",
+        "published_at": "2024-08-13",
+        "file": "f62f9d3a62b18d530e8a5a1281312aac.bin",
+        "install": {
+          "format": "merged"
+        }
+      }
+    ]
+  },
+  {
+    "fid": "80683b879277c4e1f7cf5ece30b74598",
+    "name": "UIFlow2.0 StickS3",
+    "description": "For StickS3",
+    "cover": "94793ff3cd8a060a006f092253456bce.png",
+    "category": "stickc",
+    "esp": "s3",
+    "author": "M5Stack",
+    "github": null,
+    "download": 7115,
+    "star": 0,
+    "versions": [
+      {
+        "version": "v2.4.0",
+        "published_at": "2026-01-08",
+        "file": "9c01781da010eeec9fa6aabec8a07099.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.1",
+        "published_at": "2026-01-15",
+        "file": "b66b14d5cb55506a699ba59f9220c303.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.2-rc1",
+        "published_at": "2026-02-05",
+        "file": "a9cdf56b37ca33f88e4346207aa13074.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.2-rc2",
+        "published_at": "2026-02-07",
+        "file": "c786f23d66550761504371c6691b78b2.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.2",
+        "published_at": "2026-02-08",
+        "file": "92e8f396a6d417f8d81db53a9807f286.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.3",
+        "published_at": "2026-03-19",
+        "file": "018edba07d9d69ace94cab33529bd6c0.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.4",
+        "published_at": "2026-04-22",
+        "file": "7b357c80cb9bbf327c0b5d5dc1795368.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.5",
+        "published_at": "2026-05-15",
+        "file": "39a8d7a4180da0075794680b312b3dd3.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.6",
+        "published_at": "2026-06-10",
+        "file": "2808856275017e9854022b2e6cbf60e0.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.7",
+        "published_at": "2026-06-18",
+        "file": "a6c9ef1f745fc1c0338cf1ae306b185d.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.8",
+        "published_at": "2026-06-26",
+        "file": "c42af150f3fce4f3fd683e85fc44e1b7.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.4.9",
+        "published_at": "2026-07-10",
+        "file": "9b86a319a5f1c1808bd1d12c7a2e2e3f.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.5.0",
+        "published_at": "2026-07-31",
+        "file": "0a22b71b57f6837b363720dbb798e219.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.5.1",
+        "published_at": "2026-08-18",
+        "file": "af3ec885b9c57d25a101c83ee68f11a3.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "v2.5.2",
+        "published_at": "2026-08-28",
+        "file": "d5f48c3d7ba1a1089678a926ed9a600e.bin",
+        "install": {
+          "format": "merged"
+        }
+      }
+    ]
+  },
+  {
+    "fid": "95447ed62fe38eedd4df749c111b3177",
+    "name": "Ultimate Remote - Cardputer & ADV",
+    "description": "Works with both cardputer models.\n\nA powerful universal remote control for the M5Cardputer, supporting 3498 remote profiles from 636 different manufacturers and containing around 30,000 commands. It allows you to easily find a suitable remote for you device thanks to a automatic remotes scan.\n\n!! NEW !! - UPDATE 1.2 : Support for the Flipper-IRDB, read .ir files form SD card, also new remotes added.\n\n## Key Features\n\n- Extensive Database: Contains 3498 remote profiles from 636 different manufacturers.\n- Protocol Support: Works with more than 60 infrared protocols.\n- Massive Command Set: Supports around 30,000 commands.\n- Read .ir files from SD card (See Github to get theses files).\n- Scan and Find: Allows you to scan for and find the correct remote from a particular manufacturer.\n- Favorites: Easily add remotes by pressing SPACE on any remote add it to your favorites.\n- Navigation: Navigate through different manufacturer folders to view all available remotes and save them.\n\n## Keybinds\n\nRemote's shortcuts are automatically assigned, however, keys like POWER will always have the shortcut 'P', CHANNEL_UP and CHANNEL_DOWN will always be '[' and ']', and VOL_UP and VOL_DOWN will always be '-+', the same goes for KEY_0 to KEY_9 and some others frequently used commands.",
+    "cover": "b43110bc8b7e991761fa726c5a0ff97e.jpg",
+    "category": "cardputer",
+    "esp": "s3",
+    "author": "geo_tp",
+    "github": "https://github.com/geo-tp/Ultimate-Remote",
+    "download": 39550,
+    "star": 1,
+    "versions": [
+      {
+        "version": "1.0",
+        "published_at": "2024-06-08",
+        "file": "5a6e08563d1b5561cb535a3d5301ef68.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "1.1",
+        "published_at": "2024-08-03",
+        "file": "d446000aef83588a201f8b375a722c40.bin",
+        "install": {
+          "format": "merged"
+        }
+      },
+      {
+        "version": "1.2",
+        "published_at": "2024-08-15",
+        "file": "0eaa3d1d6149ae24099d444778227adf.bin",
+        "install": {
+          "format": "merged"
+        }
+      }
+    ]
+  },
+  {
+    "fid": "9479c930c53eb3a9a2d613f2d060f58a",
+    "name": "hhhh",
+    "description": "g g g g g g g g g g g g g g g g g",
+    "cover": null,
+    "category": "cardputer",
+    "esp": "s3",
+    "author": "Batuz",
+    "github": null,
+    "download": 39,
+    "star": 0,
+    "versions": [
+      {
+        "version": "1.0",
+        "published_at": "2026-05-05",
+        "file": "8e15fe79f60938057fccd5419fc40b4d.bin"
+      }
+    ]
+  },
+  {
+    "fid": "fce002c6a1655355a250d1261421241d",
+    "name": "stellar-map",
+    "description": "a Stellarium inspired planetarium firmware for the M5Stack Cardputer ADV",
+    "cover": "1607b414e3ed88f19a0f9cbe3c6caa04.png",
+    "category": "cardputer",
+    "esp": "32",
+    "author": "wisnc",
+    "github": "https://github.com/wisnc/stellar-map",
+    "download": 518,
+    "star": 0,
+    "versions": [
+      {
+        "version": "1",
+        "published_at": "2026-05-31",
+        "file": "9f03a7879140ebd68bda4f9dc4df6cb2.bin",
+        "install": {
+          "format": "app"
+        }
+      },
+      {
+        "version": "1.1",
+        "published_at": "2026-07-18",
+        "file": "4963f35a3c66fb501fa3c50bc95367dd.bin",
+        "install": {
+          "format": "app"
+        }
+      }
+    ]
+  },
+  {
+    "fid": "CFWd3e081a49b8207c398f2c188cf4f5",
+    "name": "Bruce Firmware (BETA)",
+    "description": "Bruce is a custom firmware for the M5Stack Carduputer, designed to enhance its functionality and user experience. This beta version includes new features and improvements over the stock firmware.",
+    "cover": "41d9e573f8b7aca442af27f54d788a94.png",
+    "category": "cardputer",
+    "esp": "s3",
+    "author": "pr3y-dev",
+    "github": "https://github.com/BruceDevices/firmware",
+    "download": 410,
+    "star": 0,
+    "versions": [
+      {
+        "version": "Beta",
+        "published_at": "2026-04-04",
+        "file": "https://github.com/BruceDevices/firmware/releases/download/betaRelease/Bruce-m5stack-cardputer.bin",
+        "install": {
+          "format": "merged"
+        }
+      }
+    ]
+  }
+]

@@ -10,7 +10,10 @@ data class CatalogPart(
     val offset: String,
     val file: String,
     val size: Long,
-    val sha256: String,
+    /** Hex sha256 of the part; "" when the source publishes no hash (LauncherHub) -- filled after download. */
+    val sha256: String = "",
+    /** Where the bytes live. The app never bundles binaries: every part is downloaded from here at flash time. */
+    val url: String? = null,
 )
 
 /** One droidputter-ready build, as produced by tools/make_catalog.py into apps/catalog.json. */
@@ -26,9 +29,20 @@ data class CatalogEntry(
     val parts: List<CatalogPart> = emptyList(),
     /** Last commit that touched shim/ when the catalog was generated: part of a build's identity. */
     @SerialName("shim_commit") val shimCommit: String? = null,
-)
+    /** "droidputter" = a shim rebuild from apps/catalog.json; "launcherhub" = a prebuilt bin from the M5Burner feed. */
+    val source: String = SOURCE_DROIDPUTTER,
+    /** Upstream commit / version the build came from, for provenance. */
+    @SerialName("source_ref") val sourceRef: String? = null,
+    /** True when the build carries the shim (phone = screen + keys + GPS); false = flash only, runs on the board's own screen. */
+    val mirror: Boolean = true,
+) {
+    companion object {
+        const val SOURCE_DROIDPUTTER = "droidputter"
+        const val SOURCE_LAUNCHERHUB = "launcherhub"
+    }
+}
 
-/** Where this entry's bin parts live as bundled Android assets, e.g. "pense-bem-m5cardputer". */
+/** Stable per-entry directory name, e.g. "pense-bem-m5cardputer" (download cache, share cache). */
 val CatalogEntry.assetDirName: String
     get() = "$name-$env"
 

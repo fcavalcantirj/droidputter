@@ -3,33 +3,42 @@ package com.droidputter.catalog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.droidputter.core.catalog.CatalogEntry
+import com.droidputter.core.catalog.LauncherHub
 import com.droidputter.core.catalog.VerdictSummary
-import com.droidputter.core.catalog.assetDirName
 
 /**
- * Lists apps/catalog.json (bundled asset, read via [CatalogRepository]), shows one entry's
- * details, and hands off flashing to whichever flasher app the user picks from the Android
- * share sheet -- no droidputter-native flashing code, per docs/FLASHING.md's "Catalog hand-off".
+ * The catalog, two sources side by side (Felipe, 2026-09-03: "hold data, not files"; nothing is bundled):
+ * - **Droidputter builds** (`apps/catalog.json`, fetched live): apps rebuilt against the shim -- the phone is
+ *   the screen, keyboard and GPS. Bins are downloaded by url at flash time.
+ * - **LauncherHub** (the M5Burner firmware feed behind bmorcelli's Launcher catalog): prebuilt bins the phone
+ *   flashes out of the box; the app then runs on the Cardputer's own screen and keys (no shim = no mirror).
+ * One entry's details, "Flash from phone" (esptool ROM protocol over the same OTG port) and the community
+ * verdict for that exact firmware hash.
  */
 @Composable
 fun CatalogScreen(
@@ -44,8 +53,12 @@ fun CatalogScreen(
     summaryOf: (CatalogEntry) -> VerdictSummary? = { null },
     onVerdict: (CatalogEntry, Boolean) -> Unit = { _, _ -> },
     promptVerdictFor: CatalogEntry? = null,
+    hubEntries: List<CatalogEntry> = emptyList(),
+    hubStatus: String? = null,
 ) {
     var selected: CatalogEntry? by remember { mutableStateOf(null) }
+    var tab by remember { mutableIntStateOf(0) }
+    var query by remember { mutableStateOf("") }
     val current = selected
     // System back: detail -> list -> mirror. Without this the gesture finishes the activity
     // (and drops the link); with 11 entries the list also pushed the Back button off-screen.
@@ -56,13 +69,39 @@ fun CatalogScreen(
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
         if (current == null) {
-            if (entries.isEmpty()) {
-                Text("(no entries in apps/catalog.json)")
+            TabRow(selectedTabIndex = tab) {
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Droidputter builds (${entries.size})") })
+                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("LauncherHub (${hubEntries.size})") })
+            }
+            Text(
+                if (tab == 0) "Rebuilt against the shim: the phone is the screen, keyboard and GPS. Bins download at flash time."
+                else (hubStatus ?: "LauncherHub feed") + ". Prebuilt, flash only: the app runs on the Cardputer's own screen.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Search name, author, repo") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val source = if (tab == 0) entries else hubEntries
+            val shown = if (query.isBlank()) source else source.filter { it.matches(query) }
+            if (shown.isEmpty()) {
+                Text(
+                    when {
+                        source.isEmpty() && tab == 0 -> "(no entries in apps/catalog.json)"
+                        source.isEmpty() -> "(LauncherHub feed not loaded yet: open the Catalog once with network)"
+                        else -> "(nothing matches \"$query\")"
+                    },
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
             } else {
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(entries) { entry ->
+                    itemsIndexed(shown) { _, entry ->
                         OutlinedButton(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
-                            Text("${verdictMark(summaryOf(entry))} ${entry.name} — ${entry.env} (${entry.board})" + if (licenseUndeclared(entry)) "  \u00B7 no license" else "")
+                            Text(rowText(entry, summaryOf(entry)))
                         }
                     }
                 }
@@ -87,6 +126,22 @@ fun CatalogScreen(
     }
 }
 
+/** One list row: verdict mark, name, then what kind of build it is and its caveats. */
+private fun rowText(entry: CatalogEntry, summary: VerdictSummary?): String = buildString {
+    append(verdictMark(summary)).append(' ').append(entry.name)
+    if (entry.mirror) append(" — ${entry.env} (${entry.board})") else append(" — ${entry.board}${feedVersion(entry)?.let { " v$it" } ?: ""}")
+    if (!entry.mirror) append("  · flash only")
+    if (licenseUndeclared(entry)) append("  · no license")
+}
+
+private fun CatalogEntry.matches(q: String): Boolean =
+    name.contains(q, ignoreCase = true) || description.contains(q, ignoreCase = true) ||
+        sourceRepo.contains(q, ignoreCase = true) || board.contains(q, ignoreCase = true)
+
+/** The feed version recorded by LauncherHub.parseFeed in sourceRef ("fid=... version=1.2"); null for shim builds. */
+private fun feedVersion(entry: CatalogEntry): String? =
+    entry.sourceRef?.split(' ')?.firstOrNull { it.startsWith("version=") }?.removePrefix("version=")?.takeIf { it.isNotEmpty() }
+
 @Composable
 private fun CatalogDetail(
     entry: CatalogEntry,
@@ -100,26 +155,40 @@ private fun CatalogDetail(
     onVerdict: (Boolean) -> Unit = {},
     promptVerdict: Boolean = false,
 ) {
-    // Scrollable: in landscape the parts list pushes "Share to flasher" below the fold, where
-    // neither the D-pad nor a swipe could reach it (2026-09-03 14:11 on the Poco).
+    // Scrollable: in landscape the parts list pushes the buttons below the fold, where
+    // neither the D-pad nor a swipe could reach them (2026-09-03 14:11 on the Poco).
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(entry.name, style = MaterialTheme.typography.titleLarge)
         Text("Board: ${entry.board}")
-        Text("Build env: ${entry.env}")
+        if (entry.mirror) Text("Build env: ${entry.env}") else Text("Source: LauncherHub / M5Burner feed" + (feedVersion(entry)?.let { ", version $it" } ?: ""))
         Text(entry.description)
-        Text("Source: ${entry.sourceRepo}")
-        Text("License: ${entry.license}")
+        if (entry.sourceRepo.isNotEmpty()) Text("Source: ${entry.sourceRepo}")
+        Text(if (entry.license.isEmpty()) "License: not stated in the feed -- see the source link" else "License: ${entry.license}")
         if (licenseUndeclared(entry)) {
             // A public catalog of other people's builds: no declared license = no redistribution grant.
             // 162 of the 394 Launcher-catalog repos have none (ARCH context 2026-09-03), so say it plainly.
             Text(
-                "\u26A0 No license declared by the author: this build is here for evaluation only; " +
+                "⚠ No license declared by the author: this build is here for evaluation only; " +
                     "redistribution rights are not granted. Ask the author at the source link.",
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+        if (!entry.mirror) {
+            Text(
+                "Prebuilt binary: the phone flashes it and the app runs on the Cardputer's own screen and keys. " +
+                    "No phone mirror, phone keyboard or phone GPS -- those need a shim rebuild (Droidputter builds tab).",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (entry.parts.size == 1 && entry.parts[0].offset == LauncherHub.OFFSET_APP) {
+                Text(
+                    "App-only image (flashed at 0x10000): keeps the board's current bootloader and partition table; " +
+                        "any Droidputter or Arduino 8 MB build leaves a compatible one.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
         if (summary != null) {
             Text(
@@ -131,14 +200,15 @@ private fun CatalogDetail(
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        Text("Parts (asset dir: ${entry.assetDirName})", style = MaterialTheme.typography.titleMedium)
+        Text("Parts", style = MaterialTheme.typography.titleMedium)
         for (part in entry.parts.sortedBy { it.offset.removePrefix("0x").toLong(16) }) {
-            Text("${part.offset}  ${part.file}  ${part.size} B")
+            Text("${part.offset}  ${part.file}  " + (if (part.size > 0) "${part.size} B" else "size known after download"))
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         if (binPartsAvailable) {
-            // The phone flashes the ESP itself (esptool ROM protocol over the same OTG port).
+            // The phone flashes the ESP itself (esptool ROM protocol over the same OTG port); the parts are
+            // downloaded first (BinStore, sha256-verified cache), so a missing network never touches the link.
             Button(onClick = onFlash, enabled = !flashing, modifier = Modifier.fillMaxWidth()) {
                 Text(if (flashing) "Flashing..." else "Flash from phone")
             }
@@ -146,7 +216,7 @@ private fun CatalogDetail(
             // Community verdict for THIS firmware hash: stored on the phone, then opened as a prefilled
             // GitHub issue so the repo's verdicts.json can carry it to every other user.
             Text(if (promptVerdict) "Did it run? Tell everyone:" else "Report for this exact build:", style = MaterialTheme.typography.titleMedium)
-            androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth()) {
                 Button(onClick = { onVerdict(true) }, modifier = Modifier.weight(1f)) { Text("Works") }
                 OutlinedButton(onClick = { onVerdict(false) }, modifier = Modifier.weight(1f).padding(start = 8.dp)) { Text("Broken") }
             }
@@ -154,7 +224,7 @@ private fun CatalogDetail(
                 Text("Share to flasher")
             }
         } else {
-            Text("Bin parts not bundled on this build (built metadata only) — share disabled.")
+            Text("No download url for this entry's parts yet (catalog metadata only) -- flash and share disabled.")
         }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
             Text("Back to list")
@@ -163,10 +233,10 @@ private fun CatalogDetail(
 }
 
 private fun verdictMark(summary: VerdictSummary?): String = when (summary?.status) {
-    VerdictSummary.Status.WORKS -> if (summary.sameVersion) "\u2705" else "\u2611"
-    VerdictSummary.Status.BROKEN -> if (summary.sameVersion) "\u274C" else "\u26A0"
-    VerdictSummary.Status.MIXED -> "\u26A0"
-    else -> "\u00B7"
+    VerdictSummary.Status.WORKS -> if (summary.sameVersion) "✅" else "☑"
+    VerdictSummary.Status.BROKEN -> if (summary.sameVersion) "❌" else "⚠"
+    VerdictSummary.Status.MIXED -> "⚠"
+    else -> "·"
 }
 
 /** True for catalog entries whose upstream declares no license (tools/make_catalog.py writes "none declared (...)"). */

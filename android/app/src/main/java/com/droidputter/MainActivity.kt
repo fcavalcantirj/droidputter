@@ -31,8 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.droidputter.catalog.CatalogRepository
 import com.droidputter.catalog.CatalogScreen
+import com.droidputter.catalog.LauncherHubRepository
 import com.droidputter.catalog.VerdictRepository
 import com.droidputter.core.catalog.Verdict
+import com.droidputter.core.catalog.assetDirName
 import com.droidputter.core.catalog.firmwareSha256
 import com.droidputter.flash.PhoneFlasher
 import com.droidputter.connection.ConnectionScreen
@@ -105,12 +107,19 @@ class MainActivity : ComponentActivity() {
     private var flashing: Boolean by mutableStateOf(false)
     private val verdictRepository: VerdictRepository by lazy { VerdictRepository(this) }
     private var verdictVersion: Int by mutableStateOf(0)   // bumped to recompose badges after a refresh/report
+    private var catalogVersion: Int by mutableStateOf(0)   // bumped after a live catalog.json refresh so the list re-reads
+    // Second source: prebuilt bins from the LauncherHub / M5Burner feed (flash only, no phone mirror).
+    private val hubRepository: LauncherHubRepository by lazy { LauncherHubRepository(this) }
+    private var hubVersion: Int by mutableStateOf(0)
     private var promptVerdictFor: CatalogEntry? by mutableStateOf(null)
     private var boardName: String = "unknown"
     // Automatic verdict after a phone flash: the link evidence decides (see observeAfterFlash).
     @Volatile private var obsBootLogs = 0
     @Volatile private var obsHello = false
     @Volatile private var obsFrames = 0
+    // sha256 of the firmware part actually flashed from this phone, per entry (assetDirName): LauncherHub
+    // entries carry no hash in the catalog until the bytes are downloaded, so verdicts fall back to this.
+    private val flashedSha256 = HashMap<String, String>()
     private val phoneFlasher: PhoneFlasher by lazy {
         PhoneFlasher(this, linkManager, catalogRepository) { s -> runOnUiThread { flashStatus = s } }
     }
@@ -159,8 +168,11 @@ class MainActivity : ComponentActivity() {
                         )
                     } else if (showCatalogScreen) {
                         CatalogScreen(
-                            entries = remember { catalogRepository.loadEntries() },
-                            binPartsAvailable = catalogRepository::hasBinParts,
+                            // keyed on catalogVersion: a live refresh replaces the list (was frozen in remember {})
+                            entries = remember(catalogVersion) { catalogRepository.loadEntries() },
+                            hubEntries = remember(hubVersion) { hubRepository.entries },
+                            hubStatus = remember(hubVersion) { hubStatusLine() },
+                            binPartsAvailable = { entry -> catalogVersion; catalogRepository.isFlashable(entry) },
                             onShare = ::shareCatalogEntry,
                             onClose = { showCatalogScreen = false },
                             onFlash = ::flashCatalogEntry,
@@ -185,6 +197,10 @@ class MainActivity : ComponentActivity() {
                                         showCatalogScreen = true
                                         // live community verdicts (falls back to the cached/seed copy offline)
                                         lifecycleScope.launch { if (verdictRepository.refresh()) verdictVersion++ }
+                                        // live catalog index (same fallback); the entries list re-reads via catalogVersion
+                                        lifecycleScope.launch { if (catalogRepository.refresh()) catalogVersion++ }
+                                        // LauncherHub feed: ~3 MB, refreshed at most daily; the list re-reads via hubVersion
+                                        lifecycleScope.launch { if (hubRepository.refresh()) hubVersion++ }
                                     },
                                     modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
                                 ) {
@@ -365,7 +381,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val result = phoneFlasher.flash(entry)
             flashing = false
-            result.onSuccess { flashStatus = "done: ${entry.name} flashed and verified"; observeAfterFlash(entry) }
+            // success = the sha256 of the firmware part that was written; verdicts for hash-less entries use it
+            result.onSuccess { sha -> flashedSha256[entry.assetDirName] = sha; flashStatus = "done: ${entry.name} flashed and verified"; observeAfterFlash(entry) }
         }
     }
 
@@ -377,6 +394,14 @@ class MainActivity : ComponentActivity() {
      * user. Stored locally at once; the GitHub submission still needs the user (the browser).
      */
     private fun observeAfterFlash(entry: CatalogEntry) {
+        if (!entry.mirror) {
+            // A prebuilt bin carries no shim: no boot LOG, no HELLO, no frames will ever arrive, so the
+            // 20 s observation below would call every working app "broken". The board's own screen is
+            // the only judge -> ask the human.
+            promptVerdictFor = entry
+            flashStatus = "flashed: ${entry.name} runs on the Cardputer's own screen (prebuilt, no phone mirror) -- Works or Broken?"
+            return
+        }
         obsBootLogs = 0; obsHello = false; obsFrames = 0
         lifecycleScope.launch {
             delay(OBSERVE_AFTER_FLASH_MS)
@@ -390,6 +415,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** One line for the LauncherHub tab header: how many prebuilt apps and how fresh the feed copy is. */
+    private fun hubStatusLine(): String {
+        val n = hubRepository.entries.size
+        val at = hubRepository.fetchedAtMillis ?: return "LauncherHub feed not fetched yet (needs network once)"
+        val ageMin = (System.currentTimeMillis() - at) / 60_000
+        val age = if (ageMin < 60) "$ageMin min ago" else "${ageMin / 60} h ago"
+        return "$n prebuilt Cardputer/StampS3 apps from LauncherHub (M5Burner feed), fetched $age"
+    }
+
     private fun autoVerdict(entry: CatalogEntry, works: Boolean, note: String) {
         verdictRepository.addLocal(makeVerdict(entry, works, note))
         verdictVersion++
@@ -398,7 +432,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun makeVerdict(entry: CatalogEntry, works: Boolean, note: String = "") = Verdict(
-        name = entry.name, env = entry.env, firmwareSha256 = entry.firmwareSha256, shimCommit = entry.shimCommit,
+        name = entry.name, env = entry.env, firmwareSha256 = entry.firmwareSha256.ifEmpty { flashedSha256[entry.assetDirName] ?: "" }, shimCommit = entry.shimCommit,
         board = boardName, result = if (works) Verdict.RESULT_WORKS else Verdict.RESULT_BROKEN, note = note,
         date = java.time.LocalDate.now().toString(),
     )
@@ -412,9 +446,15 @@ class MainActivity : ComponentActivity() {
         runCatching { startActivity(verdictRepository.issueIntent(v)) }.onFailure { Log.w(TAG, "issue intent failed: ${it.message}") }
     }
 
+    /** Parts come from the download cache now (fetched on demand), so building the share is a coroutine. */
     private fun shareCatalogEntry(entry: CatalogEntry) {
-        val intent = catalogRepository.buildShareIntent(entry)
-        startActivity(Intent.createChooser(intent, "Flash ${entry.name} (${entry.env})"))
+        lifecycleScope.launch {
+            val intent = runCatching {
+                catalogRepository.buildShareIntent(entry) { msg, pct -> runOnUiThread { flashStatus = if (pct in 1..99) "$msg ($pct%)" else msg } }
+            }.onFailure { flashStatus = "share FAILED: ${it.message}" }.getOrNull() ?: return@launch
+            flashStatus = "sharing ${entry.parts.size} parts"
+            startActivity(Intent.createChooser(intent, "Flash ${entry.name} (${entry.env})"))
+        }
     }
 
     /** Shared by the soft keyboard and hardware-keyboard passthrough below: both just need to

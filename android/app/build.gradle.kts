@@ -55,69 +55,25 @@ val copyDemoFixture by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("generated/demoAssets/fixtures/pense-bem"))
 }
 
-// Catalog screen: bundles apps/catalog.json plus, for whichever entries have been built
-// locally (apps/*/.pio/build/<env>/*.bin), their actual bin parts, so the share-to-flasher
-// action has real bytes to hand off. An entry whose build_dir doesn't exist on this machine
-// yet (fresh clone, or a board that hasn't been built this session) just ships without its
-// bin files -- CatalogRepository treats a missing asset as "not available to share".
+// Catalog screen: bundles apps/catalog.json (+ apps/verdicts.json) only as the offline SEED of the
+// live index the app fetches from GitHub at run time (CatalogRepository / VerdictRepository). No
+// firmware binaries ship in the APK (Felipe, 2026-09-03: "hold data only; download at flash time") --
+// BinStore downloads each part by its catalog url when the user flashes or shares, into a
+// sha256-verified cache under filesDir/bins.
 val catalogJsonSrc = rootProject.projectDir.parentFile.resolve("apps/catalog.json")
-
-data class CatalogAssetSource(val assetDirName: String, val buildDir: File, val files: List<String>)
-
-val catalogAssetSources: List<CatalogAssetSource> = if (catalogJsonSrc.isFile) {
-    @Suppress("UNCHECKED_CAST")
-    val entries = groovy.json.JsonSlurper().parse(catalogJsonSrc) as List<Map<String, Any?>>
-    entries.map { entry ->
-        val name = entry["name"] as String
-        val env = entry["env"] as String
-        val buildDir = (entry["build_dir"] as? String)
-            ?.let { rootProject.projectDir.parentFile.resolve(it) }
-            ?: rootProject.projectDir.parentFile.resolve("apps/$name/.pio/build/$env")
-        @Suppress("UNCHECKED_CAST")
-        val files = (entry["parts"] as List<Map<String, Any?>>).map { it["file"] as String }
-        CatalogAssetSource("$name-$env", buildDir, files)
-    }
-} else {
-    emptyList()
-}
-
 val verdictsJsonSrc = rootProject.projectDir.parentFile.resolve("apps/verdicts.json")
 
-val copyCatalogManifest by tasks.registering(Copy::class) {
+// Sync, not Copy: the destination is an assets srcDir, so anything stale in it (the bundled bins of
+// builds before 2026-09-04) would still ship. Sync leaves exactly these two seed files.
+val copyCatalogManifest by tasks.registering(Sync::class) {
     from(catalogJsonSrc)
-    // Community verdicts: the app fetches the live file from GitHub; this copy is the offline seed.
     if (verdictsJsonSrc.isFile) from(verdictsJsonSrc)
-    into(layout.buildDirectory.dir("generated/catalogAssets/catalog"))
-}
-
-// boot_app0.bin (arduino-esp32's fixed OTA-data image, see docs/FLASHING.md) isn't a per-app
-// PlatformIO build output -- it lives in the toolchain package, not any app's build_dir -- so
-// every entry needing it (tools/make_catalog.py's PARTS table) gets it copied from there too.
-val bootApp0Src = File(
-    System.getProperty("user.home"),
-    ".platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin",
-)
-
-val copyCatalogBins by tasks.registering(Copy::class) {
-    for (source in catalogAssetSources) {
-        if (source.buildDir.isDirectory) {
-            from(source.buildDir) {
-                include(source.files)
-                into(source.assetDirName)
-            }
-        }
-        if (source.files.contains("boot_app0.bin") && bootApp0Src.isFile) {
-            from(bootApp0Src) {
-                into(source.assetDirName)
-            }
-        }
-    }
     into(layout.buildDirectory.dir("generated/catalogAssets/catalog"))
 }
 
 tasks.configureEach {
     if (name.startsWith("merge") && name.endsWith("Assets")) {
-        dependsOn(copyDemoFixture, copyCatalogManifest, copyCatalogBins)
+        dependsOn(copyDemoFixture, copyCatalogManifest)
     }
 }
 
