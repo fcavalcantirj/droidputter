@@ -63,7 +63,7 @@ INCLUDE_TO_DEP = {
     "Wire.h": None, "SPI.h": None, "EEPROM.h": None, "Ticker.h": None, "esp_now.h": None, "esp_wifi.h": None, "esp_sleep.h": None,
     "BLEDevice.h": None, "BLEServer.h": None, "BLEUtils.h": None, "BLE2902.h": None, "BLEScan.h": None, "BLEAdvertisedDevice.h": None,
     "USB.h": None, "USBHIDKeyboard.h": None, "USBHIDMouse.h": None, "driver/i2s.h": None, "driver/rmt.h": None, "esp_system.h": None,
-    "Arduino.h": None, "M5Cardputer.h": None, "M5Unified.h": None, "M5GFX.h": None, "M5Unified.hpp": None, "M5GFX.hpp": None,
+    "Arduino.h": None, "pgmspace.h": None, "avr/pgmspace.h": None, "M5Cardputer.h": None, "M5Unified.h": None, "M5GFX.h": None, "M5Unified.hpp": None, "M5GFX.hpp": None,
     "M5UnitLCD.h": None, "M5UnitOLED.h": None, "M5AtomDisplay.h": None, "M5ModuleDisplay.h": None, "M5Stack.h": None,
 }
 LOCAL_HEADER_EXTS = (".h", ".hpp", ".hh")
@@ -243,6 +243,19 @@ def generate(slug: str, name: str, env_src: str | None, ref: str | None) -> dict
     src_dir_abs = src / src_dir
     if not src_dir_abs.exists():
         sys.exit(f"{slug}: src_dir {src_dir_abs} missing")
+    if cp:
+        # PlatformIO repos declare lib_deps, but not always all of them: Ultimate-Remote #includes <IRremote.hpp>
+        # with no IRremote in its ini (Arduino-IDE users have it installed globally -- and so did this Mac's
+        # ~/.platformio/lib, which hid the gap until the first GitHub-runner build failed, 2026-09-04). So the
+        # include scan runs for PlatformIO repos too and adds registry deps whose package is not declared yet.
+        inferred, unknown = infer_ino_deps(src_dir_abs, src)
+        declared = {re.split(r"[@=]", d, 1)[0].strip().lower() for d in lib_deps}
+        added = [d for d in inferred if re.split(r"[@=]", d, 1)[0].strip().lower() not in declared]
+        if added:
+            lib_deps += added
+            info["inferred_deps"] = added
+        if unknown:
+            info["unresolved_includes"] = unknown
     if not any(STD_FLAG.match(f) for f in flags):
         flags.insert(0, "-std=gnu++17")
     if not any(f.startswith("-DCORE_DEBUG_LEVEL") for f in flags):
