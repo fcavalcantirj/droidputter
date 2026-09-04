@@ -117,6 +117,11 @@ class MainActivity : ComponentActivity() {
     @Volatile private var obsBootLogs = 0
     @Volatile private var obsHello = false
     @Volatile private var obsFrames = 0
+    // ESP console lines seen on the wire (PanicSniffer in the transport): boot resets and panics, so a
+    // reboot-looping app -- shim build or prebuilt -- is a fact on the phone, not silence.
+    @Volatile private var obsResets = 0
+    @Volatile private var obsPanics = 0
+    @Volatile private var lastPanicLine: String? = null
     // sha256 of the firmware part actually flashed from this phone, per entry (assetDirName): LauncherHub
     // entries carry no hash in the catalog until the bytes are downloaded, so verdicts fall back to this.
     private val flashedSha256 = HashMap<String, String>()
@@ -238,6 +243,10 @@ class MainActivity : ComponentActivity() {
             stateMachine = stateMachine,
             onTransportOpened = { opened ->
                 transport = opened
+                opened.onEspLine = { line ->
+                    if (com.droidputter.core.link.PanicSniffer.isReset(line)) obsResets++
+                    if (com.droidputter.core.link.PanicSniffer.isPanic(line)) { obsPanics++; lastPanicLine = line }
+                }
                 // A phone opening the port after the ESP's boot-time HELLO already drained its
                 // TX ring never sees one otherwise (the ESP only resends HELLO on HELLO_ACK/PING_IN,
                 // see droidputter.cpp:onFrame) -- so probe for it immediately.
@@ -394,12 +403,23 @@ class MainActivity : ComponentActivity() {
      * user. Stored locally at once; the GitHub submission still needs the user (the browser).
      */
     private fun observeAfterFlash(entry: CatalogEntry) {
+        obsResets = 0; obsPanics = 0; lastPanicLine = null
         if (!entry.mirror) {
             // A prebuilt bin carries no shim: no boot LOG, no HELLO, no frames will ever arrive, so the
-            // 20 s observation below would call every working app "broken". The board's own screen is
-            // the only judge -> ask the human.
+            // shim-based observation below would call every working app "broken". What the wire still
+            // shows is the ROM banner and the panic handler: a crash loop is reported, a quiet boot is
+            // left to the human (the board's own screen is the only judge).
             promptVerdictFor = entry
             flashStatus = "flashed: ${entry.name} runs on the Cardputer's own screen (prebuilt, no phone mirror) -- Works or Broken?"
+            lifecycleScope.launch {
+                delay(OBSERVE_AFTER_FLASH_MS)
+                val panics = obsPanics; val resets = obsResets
+                Log.d(TAG, "prebuilt observe ${entry.name}: resets=$resets panics=$panics last=$lastPanicLine")
+                if (panics > 0 || resets >= 3) {
+                    flashStatus = "prebuilt ${entry.name} is crashing: $resets resets, $panics panics in 20 s" +
+                        (lastPanicLine?.let { " -- $it" } ?: "") + " -- Broken?"
+                }
+            }
             return
         }
         obsBootLogs = 0; obsHello = false; obsFrames = 0
