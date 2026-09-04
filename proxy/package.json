@@ -1,0 +1,16 @@
+{
+  "name": "droidputter-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "droidputter build proxy: dispatches .github/workflows/build-app.yml on demand and streams the run's artifact parts to the phone",
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
+  }
+}

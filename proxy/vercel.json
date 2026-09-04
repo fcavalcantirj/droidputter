@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/api/build/:id", "destination": "/api/build/[id]?id=:id" },
+    { "source": "/api/artifact/:run/:file", "destination": "/api/artifact/[run]/[file]?run=:run&file=:file" }
+  ]
+}

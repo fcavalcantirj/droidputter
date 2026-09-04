@@ -21,3 +21,8 @@ apps/_src/
 # link-repro build artifact + proof PNGs
 tools/link-repro/reenum
 tools/link-repro/*.png
+# proxy/ (Vercel build proxy): dependencies + vercel link state
+proxy/node_modules/
+proxy/.vercel/
+# ... but proxy/api/build/[id].js is a Vercel route, not a build output
+!proxy/api/build/
