@@ -71,6 +71,55 @@ static void test_decode_rejects_malformed_stream(void) {
   TEST_ASSERT_EQUAL_UINT32(0, dp::dp_rle_decode(tooManyPixels, sizeof tooManyPixels, px, 3));
 }
 
+// --- row-wise encoder for band splitting (2026-09-04) ---
+static void fill_rows_be(uint8_t* px, uint16_t width, uint16_t rows, uint16_t (*color)(uint16_t r, uint16_t x)) {
+  for (uint16_t r = 0; r < rows; r++) for (uint16_t x = 0; x < width; x++) {
+    uint16_t v = color(r, x); px[((size_t)r * width + x) * 2] = v >> 8; px[((size_t)r * width + x) * 2 + 1] = v & 0xFF;
+  }
+}
+static uint16_t solid_per_row(uint16_t r, uint16_t) { return (uint16_t)(0x1000 + r); }
+static uint16_t noise(uint16_t r, uint16_t x) { return (uint16_t)(r * 977 + x * 131 + (x & 1) * 0x8000); }
+
+static void test_rows_all_fit_is_one_run_per_row(void) {
+  static uint8_t px[240 * 10 * 2]; fill_rows_be(px, 240, 10, solid_per_row);
+  uint8_t out[64]; uint16_t done = 0;
+  size_t len = dp::dp_rle_encode_rows_be(px, 240, 10, out, sizeof out, &done);
+  TEST_ASSERT_EQUAL_UINT16(10, done);
+  TEST_ASSERT_EQUAL_UINT32(10 * 3, len);   // 240 px <= 255 -> one run per row
+  TEST_ASSERT_EQUAL_UINT8(240, out[0]); TEST_ASSERT_EQUAL_UINT8(0x10, out[1]); TEST_ASSERT_EQUAL_UINT8(0x00, out[2]);
+  TEST_ASSERT_EQUAL_UINT8(0x09, out[9 * 3 + 2]);   // last row's color 0x1009
+}
+
+static void test_rows_stop_before_the_row_that_does_not_fit(void) {
+  static uint8_t px[240 * 10 * 2]; fill_rows_be(px, 240, 10, solid_per_row);
+  uint8_t out[3 * 4 + 1]; uint16_t done = 0;   // room for 4 rows, not 5
+  size_t len = dp::dp_rle_encode_rows_be(px, 240, 10, out, sizeof out, &done);
+  TEST_ASSERT_EQUAL_UINT16(4, done);
+  TEST_ASSERT_EQUAL_UINT32(12, len);
+}
+
+static void test_rows_zero_when_first_row_does_not_fit(void) {
+  static uint8_t px[240 * 2 * 2]; fill_rows_be(px, 240, 2, noise);   // noise: 240 runs of 1 = 720 B per row
+  uint8_t out[500]; uint16_t done = 7;
+  TEST_ASSERT_EQUAL_UINT32(0, dp::dp_rle_encode_rows_be(px, 240, 2, out, sizeof out, &done));
+  TEST_ASSERT_EQUAL_UINT16(0, done);
+}
+
+static void test_rows_concatenation_decodes_to_the_same_pixels(void) {
+  static uint8_t px[240 * 6 * 2]; fill_rows_be(px, 240, 6, noise);
+  static uint8_t out[240 * 6 * 3]; uint16_t done = 0;
+  size_t len = dp::dp_rle_encode_rows_be(px, 240, 6, out, sizeof out, &done);
+  TEST_ASSERT_EQUAL_UINT16(6, done);
+  static uint16_t decoded[240 * 6];
+  TEST_ASSERT_EQUAL_UINT32(240 * 6, dp::dp_rle_decode(out, len, decoded, 240 * 6));
+  for (size_t i = 0; i < 240 * 6; i++) {
+    uint16_t v = (uint16_t)(px[i * 2] << 8 | px[i * 2 + 1]);
+    TEST_ASSERT_EQUAL_UINT16(v, decoded[i]);
+  }
+  // and for noise the caller must notice RLE is NOT shorter than raw (240*6*2 = 2880 B)
+  TEST_ASSERT_TRUE(len >= 240 * 6 * 2);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_solid_rect_compresses_to_n_over_255_runs);
@@ -78,5 +127,9 @@ int main(int argc, char** argv) {
   RUN_TEST(test_round_trip_equals_input);
   RUN_TEST(test_encode_rejects_output_over_capacity);
   RUN_TEST(test_decode_rejects_malformed_stream);
+  RUN_TEST(test_rows_all_fit_is_one_run_per_row);
+  RUN_TEST(test_rows_stop_before_the_row_that_does_not_fit);
+  RUN_TEST(test_rows_zero_when_first_row_does_not_fit);
+  RUN_TEST(test_rows_concatenation_decodes_to_the_same_pixels);
   return UNITY_END();
 }

@@ -33,6 +33,8 @@ void put16(uint8_t* p, uint16_t v);
 // Callers use this to drop a whole outgoing message instead of blocking the
 // app while usb_write() waits for room.
 bool hasSpace(size_t n);
+// Bytes currently free in the HWCDC TX ring (0 when the link is dead): the flush budget for band splitting.
+size_t txFree();
 
 // Frame send: header+payload(s)+crc8, per docs/PROTOCOL.md. No-op before begin().
 // Blocks up to a small write budget if the ring is already draining (rare once

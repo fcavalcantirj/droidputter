@@ -23,6 +23,7 @@ void dp_shadow_load_row(uint16_t y, const uint8_t* be);            // one full r
 bool dp_shadow_dirty(uint16_t* y0, uint16_t* y1);                  // inclusive dirty row band; false if clean
 void dp_shadow_mark_all_dirty();
 void dp_shadow_clear_dirty();
+void dp_shadow_clear_dirty_top(uint16_t rows);                    // the first `rows` of the dirty band were flushed; the rest stays dirty
 const uint8_t* dp_shadow_buffer();                                 // W*H*2 bytes, row-major, wire order
 uint32_t dp_shadow_cursor();                                       // test hook: pixel index inside the window
 

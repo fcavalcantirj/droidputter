@@ -63,6 +63,11 @@ bool dp_shadow_dirty(uint16_t* y0, uint16_t* y1) {
 }
 void dp_shadow_mark_all_dirty() { dy0 = 0; dy1 = DP_SHADOW_H - 1; }
 void dp_shadow_clear_dirty() { dy0 = dy1 = -1; }
+void dp_shadow_clear_dirty_top(uint16_t rows) {
+  if (dy0 < 0) return;
+  dy0 += rows;
+  if (dy0 > dy1) dy0 = dy1 = -1;
+}
 const uint8_t* dp_shadow_buffer() { return fb; }
 uint32_t dp_shadow_cursor() { return wcur; }
 

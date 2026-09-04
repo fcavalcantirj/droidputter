@@ -68,6 +68,19 @@ static void test_rle_be_returns_zero_when_not_shorter(void) {
   uint8_t out[512]; TEST_ASSERT_EQUAL_UINT32(0, dp::dp_rle_encode_be(be, 64, out, sizeof out));
 }
 
+static void test_clear_dirty_top_keeps_the_rest_dirty(void) {
+  dp::dp_shadow_reset();
+  dp::dp_shadow_fill(0, 20, 240, 10, 0x12, 0x34);   // rows 20..29 dirty
+  uint16_t y0 = 0, y1 = 0;
+  TEST_ASSERT_TRUE(dp::dp_shadow_dirty(&y0, &y1)); TEST_ASSERT_EQUAL_UINT16(20, y0); TEST_ASSERT_EQUAL_UINT16(29, y1);
+  dp::dp_shadow_clear_dirty_top(4);                    // rows 20..23 flushed
+  TEST_ASSERT_TRUE(dp::dp_shadow_dirty(&y0, &y1)); TEST_ASSERT_EQUAL_UINT16(24, y0); TEST_ASSERT_EQUAL_UINT16(29, y1);
+  dp::dp_shadow_clear_dirty_top(6);                    // the rest
+  TEST_ASSERT_FALSE(dp::dp_shadow_dirty(&y0, &y1));
+  dp::dp_shadow_clear_dirty_top(3);                    // clean stays clean
+  TEST_ASSERT_FALSE(dp::dp_shadow_dirty(&y0, &y1));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_window_write_lands_row_major_and_marks_rows_dirty);
@@ -77,5 +90,6 @@ int main(int, char**) {
   RUN_TEST(test_fill_clips_to_the_panel);
   RUN_TEST(test_rle_be_matches_rle_on_host_order_pixels);
   RUN_TEST(test_rle_be_returns_zero_when_not_shorter);
+  RUN_TEST(test_clear_dirty_top_keeps_the_rest_dirty);
   return UNITY_END();
 }

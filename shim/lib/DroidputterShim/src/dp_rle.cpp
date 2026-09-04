@@ -33,8 +33,8 @@ size_t dp_rle_decode(const uint8_t* in, size_t inLen, uint16_t* px, size_t cap) 
 
 }  // namespace dp
 
-size_t dp::dp_rle_encode_be(const uint8_t* px, size_t n, uint8_t* out, size_t cap) {
-  if (!n) return 0;
+// Runs of n wire-order pixels into out; 0 only when `cap` is exceeded (no "shorter than raw" rule here).
+static size_t encode_be_runs(const uint8_t* px, size_t n, uint8_t* out, size_t cap) {
   size_t o = 0, i = 0;
   while (i < n) {
     uint8_t c0 = px[i * 2], c1 = px[i * 2 + 1];
@@ -43,7 +43,23 @@ size_t dp::dp_rle_encode_be(const uint8_t* px, size_t n, uint8_t* out, size_t ca
     if (o + 3 > cap) return 0;
     out[o++] = (uint8_t)run; out[o++] = c0; out[o++] = c1;
     i += run;
-    if (o >= n * 2) return 0;   // not shorter than raw
   }
   return o;
+}
+
+size_t dp::dp_rle_encode_be(const uint8_t* px, size_t n, uint8_t* out, size_t cap) {
+  if (!n) return 0;
+  size_t o = encode_be_runs(px, n, out, cap < n * 2 ? cap : n * 2 - 1);   // must beat raw (n*2 B) to be worth it
+  return o;
+}
+
+size_t dp::dp_rle_encode_rows_be(const uint8_t* px, uint16_t width, uint16_t rows, uint8_t* out, size_t cap, uint16_t* rows_done) {
+  size_t o = 0; uint16_t r = 0;
+  for (; r < rows; r++) {
+    size_t len = encode_be_runs(px + (size_t)r * width * 2, width, out + o, cap - o);
+    if (!len) break;
+    o += len;
+  }
+  if (rows_done) *rows_done = r;
+  return r ? o : 0;
 }

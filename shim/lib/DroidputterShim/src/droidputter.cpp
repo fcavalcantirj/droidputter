@@ -29,6 +29,7 @@ uint32_t st_frames, st_bytes, st_dropped;
 uint8_t crc8(uint8_t c, const uint8_t* p, size_t n) { while (n--) { c ^= *p++; for (int i = 0; i < 8; i++) c = (c & 0x80) ? (c << 1) ^ 0x07 : (c << 1); } return c; }
 void put16(uint8_t* p, uint16_t v) { p[0] = v & 0xFF; p[1] = v >> 8; }
 bool hasSpace(size_t n) { return (size_t)Serial.availableForWrite() >= n; }
+size_t txFree() { int f = Serial.availableForWrite(); return f > 0 ? (size_t)f : 0; }
 #ifndef DROIDPUTTER_TXBUF
 #define DROIDPUTTER_TXBUF 32768
 #endif

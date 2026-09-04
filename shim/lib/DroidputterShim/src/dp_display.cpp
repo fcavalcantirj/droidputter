@@ -28,23 +28,33 @@ static bool shadow_ready = false;
 
 static void ensureShadow() { if (!shadow_ready) { dp_shadow_reset(); shadow_ready = true; } }
 
-// Flush the dirty row band [y0..y1] (full width) as one RECT_RLE, else one raw RECT. Returns
-// true if it went out (or nothing was dirty). Drops (keeps dirty) when the ring has no room.
+// Flush the dirty row band [y0..y1] (full width): as many whole rows from the top as fit the ring's free
+// space right now, as one RECT_RLE (or one raw RECT when RLE would not be shorter); the rows that did not fit
+// stay dirty for the next tick. Before 2026-09-04 it was the whole band or nothing, so a band whose RLE beat
+// the 32 KB stage fell back to raw (up to 64,800 B) that a 32 KB ring can never take: the band stayed dirty
+// forever and the mirror froze on photo-like content. Returns true if something went out (or nothing was
+// dirty); false = paced, or not even one row fits (ring full / dead link -> the watchdog's business).
 static bool flushDirty(bool force) {
   uint16_t y0, y1;
   if (!dp_shadow_dirty(&y0, &y1)) return true;
   uint32_t now = millis();
   if (!force && now - last_flush_ms < DP_FLUSH_MS) return false;
   last_flush_ms = now;
-  uint32_t h = (uint32_t)y1 - y0 + 1, n = (uint32_t)MAXW * h, raw = n * 2;
+  uint16_t h = (uint16_t)(y1 - y0 + 1);
   const uint8_t* px = dp_shadow_buffer() + (size_t)y0 * MAXW * 2;   // rows are contiguous
-  size_t rleLen = dp_rle_encode_be(px, n, stage, sizeof stage);
-  size_t payload = rleLen ? rleLen : raw;
-  if (!internal::hasSpace(6 + 8 + payload)) { internal::st_dropped++; return false; }
-  uint8_t hd[8]; internal::put16(hd, 0); internal::put16(hd + 2, y0); internal::put16(hd + 4, MAXW); internal::put16(hd + 6, (uint16_t)h);
-  if (rleLen) internal::send(RECT_RLE, hd, 8, stage, rleLen);
-  else internal::send(RECT, hd, 8, px, raw);
-  dp_shadow_clear_dirty();
+  size_t free_ = internal::txFree();
+  size_t budget = free_ > 6 + 8 ? free_ - (6 + 8) : 0;              // frame header + RECT header + crc
+  if (budget > sizeof stage) budget = sizeof stage;
+  uint16_t rleRows = 0;
+  size_t rleLen = budget ? dp_rle_encode_rows_be(px, MAXW, h, stage, budget, &rleRows) : 0;
+  uint16_t rawRows = (uint16_t)(budget / ((size_t)MAXW * 2)); if (rawRows > h) rawRows = h;
+  bool useRle = rleRows > 0 && rleRows >= rawRows && rleLen < (size_t)rleRows * MAXW * 2;
+  uint16_t rows = useRle ? rleRows : rawRows;
+  if (!rows) { internal::st_dropped++; return false; }               // not one row fits: nothing to do this tick
+  uint8_t hd[8]; internal::put16(hd, 0); internal::put16(hd + 2, y0); internal::put16(hd + 4, MAXW); internal::put16(hd + 6, rows);
+  if (useRle) internal::send(RECT_RLE, hd, 8, stage, rleLen);
+  else internal::send(RECT, hd, 8, px, (size_t)rows * MAXW * 2);
+  dp_shadow_clear_dirty_top(rows);
   return true;
 }
 
