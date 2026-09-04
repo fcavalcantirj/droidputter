@@ -31,5 +31,16 @@
     "note": "flashes and verifies, then reboot-loops: boot rst=5 (interrupt WDT), Guru Meditation 'Interrupt wdt timeout on CPU0' every 3 s",
     "date": "2026-09-03",
     "reporter": "fcavalcantirj"
+  },
+  {
+    "name": "pense-bem",
+    "env": "m5cardputer",
+    "firmware_sha256": "44ec3bf1729deefe9134a7b1dfbe4a5c753c0fb03ee96f3aab7f13dda5f77ebb",
+    "shim_commit": "b278863",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "Pense-Bem on the Poco 2026-09-03 13:42: coherent mirror, 402 RectRle, Felipe drove the game from the soft keys",
+    "date": "2026-09-04",
+    "reporter": "fcavalcantirj"
   }
 ]
