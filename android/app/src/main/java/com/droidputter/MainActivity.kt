@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -29,10 +30,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.droidputter.catalog.BuildFlow
+import com.droidputter.catalog.BuildProxyClient
+import com.droidputter.catalog.BuildRequestState
 import com.droidputter.catalog.CatalogRepository
 import com.droidputter.catalog.CatalogScreen
 import com.droidputter.catalog.LauncherHubRepository
+import com.droidputter.catalog.MyBuildsRepository
 import com.droidputter.catalog.VerdictRepository
+import com.droidputter.core.catalog.BuildProxy
 import com.droidputter.core.catalog.Verdict
 import com.droidputter.core.catalog.assetDirName
 import com.droidputter.core.catalog.firmwareSha256
@@ -111,6 +117,21 @@ class MainActivity : ComponentActivity() {
     // Second source: prebuilt bins from the LauncherHub / M5Burner feed (flash only, no phone mirror).
     private val hubRepository: LauncherHubRepository by lazy { LauncherHubRepository(this) }
     private var hubVersion: Int by mutableStateOf(0)
+    // On-demand shim builds (Felipe, 2026-09-04): the build proxy runs the GitHub Actions build for a repo and
+    // hands the parts back; ready builds are this phone's own catalog entries (my_builds.json), listed first.
+    private val myBuildsRepository: MyBuildsRepository by lazy { MyBuildsRepository(this) }
+    private var buildsVersion: Int by mutableStateOf(0)   // bumped when a proxy build lands so the list re-reads
+    private var buildState: BuildRequestState? by mutableStateOf(null)
+    private var catalogNavigateTo: CatalogEntry? by mutableStateOf(null)   // the detail the catalog should open next
+    private val buildFlow: BuildFlow by lazy {
+        BuildFlow(
+            scope = lifecycleScope,
+            client = BuildProxyClient(),
+            myBuilds = myBuildsRepository,
+            onState = { s -> buildState = s },
+            onReady = { entry -> buildsVersion++; catalogNavigateTo = entry },
+        )
+    }
     private var promptVerdictFor: CatalogEntry? by mutableStateOf(null)
     private var boardName: String = "unknown"
     // Automatic verdict after a phone flash: the link evidence decides (see observeAfterFlash).
@@ -177,15 +198,23 @@ class MainActivity : ComponentActivity() {
                             entries = remember(catalogVersion) { catalogRepository.loadEntries() },
                             hubEntries = remember(hubVersion) { hubRepository.entries },
                             hubStatus = remember(hubVersion) { hubStatusLine() },
-                            binPartsAvailable = { entry -> catalogVersion; catalogRepository.isFlashable(entry) },
+                            binPartsAvailable = { entry -> catalogVersion; buildsVersion; catalogRepository.isFlashable(entry) },
                             onShare = ::shareCatalogEntry,
-                            onClose = { showCatalogScreen = false },
+                            // Leaving the catalog stops watching an in-flight build (the proxy keeps building;
+                            // asking again returns it cached).
+                            onClose = { showCatalogScreen = false; buildFlow.cancel() },
                             onFlash = ::flashCatalogEntry,
                             flashStatus = flashStatus,
                             flashing = flashing,
                             summaryOf = { entry -> verdictVersion; verdictRepository.summarize(entry) },
                             onVerdict = ::reportVerdict,
                             promptVerdictFor = promptVerdictFor,
+                            myBuilds = remember(buildsVersion) { myBuildsRepository.entries },
+                            buildState = buildState,
+                            onBuild = ::requestProxyBuild,
+                            onOpenUrl = ::openUrl,
+                            navigateTo = catalogNavigateTo,
+                            onNavigated = { catalogNavigateTo = null },
                         )
                     } else {
                         Column(Modifier.fillMaxSize()) {
@@ -478,6 +507,26 @@ class MainActivity : ComponentActivity() {
         verdictVersion++
         promptVerdictFor = null
         runCatching { startActivity(verdictRepository.issueIntent(v)) }.onFailure { Log.w(TAG, "issue intent failed: ${it.message}") }
+    }
+
+    /**
+     * "Build mirror version": ask the proxy for a shim build of [slug]. [seed] is the entry the user was
+     * looking at (recipe, LauncherHub prebuilt, earlier proxy build) and lends its license and description;
+     * the name follows the recipes' style from the repo name unless the seed is already a shim build of it.
+     * The ready build is saved by [BuildFlow] and the catalog jumps to it (catalogNavigateTo).
+     */
+    private fun requestProxyBuild(slug: String, seed: CatalogEntry?) {
+        val shimSeed = seed?.takeIf { it.source == CatalogEntry.SOURCE_DROIDPUTTER || it.source == CatalogEntry.SOURCE_PROXY }
+        buildFlow.start(
+            slug = slug,
+            displayName = shimSeed?.name ?: BuildProxy.defaultName(slug),
+            license = seed?.license.orEmpty(),
+            description = seed?.description?.removeSuffix(" ${BuildProxy.DESCRIPTION_SUFFIX}").orEmpty(),
+        )
+    }
+
+    private fun openUrl(url: String) {
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.onFailure { Log.w(TAG, "open url failed: ${it.message}") }
     }
 
     /** Parts come from the download cache now (fetched on demand), so building the share is a coroutine. */

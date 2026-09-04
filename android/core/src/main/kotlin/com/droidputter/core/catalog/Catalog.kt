@@ -2,6 +2,7 @@ package com.droidputter.core.catalog
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /** One flash-offset part of a [CatalogEntry] (bootloader/partitions/boot_app0/firmware). */
@@ -29,7 +30,8 @@ data class CatalogEntry(
     val parts: List<CatalogPart> = emptyList(),
     /** Last commit that touched shim/ when the catalog was generated: part of a build's identity. */
     @SerialName("shim_commit") val shimCommit: String? = null,
-    /** "droidputter" = a shim rebuild from apps/catalog.json; "launcherhub" = a prebuilt bin from the M5Burner feed. */
+    /** "droidputter" = a shim rebuild from apps/catalog.json; "launcherhub" = a prebuilt bin from the M5Burner feed;
+     *  "proxy" = a shim build the build proxy produced on demand for this phone (see BuildProxy). */
     val source: String = SOURCE_DROIDPUTTER,
     /** Upstream commit / version the build came from, for provenance. */
     @SerialName("source_ref") val sourceRef: String? = null,
@@ -39,6 +41,7 @@ data class CatalogEntry(
     companion object {
         const val SOURCE_DROIDPUTTER = "droidputter"
         const val SOURCE_LAUNCHERHUB = "launcherhub"
+        const val SOURCE_PROXY = "proxy"
     }
 }
 
@@ -50,6 +53,13 @@ private val catalogJson = Json { ignoreUnknownKeys = true }
 
 /** Parses apps/catalog.json (or an equivalent bundled asset copy) into [CatalogEntry] list. */
 fun parseCatalog(json: String): List<CatalogEntry> = catalogJson.decodeFromString(json)
+
+// Defaults written out: a persisted list must read back identically on a build whose defaults changed.
+private val catalogJsonOut = Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = true }
+
+/** The inverse of [parseCatalog]: how the app persists the proxy builds it owns (filesDir/my_builds.json). */
+fun encodeCatalog(entries: List<CatalogEntry>): String =
+    catalogJsonOut.encodeToString(ListSerializer(CatalogEntry.serializer()), entries)
 
 /**
  * The text blob shared alongside an entry's bin files (see docs/FLASHING.md "Catalog hand-off"):

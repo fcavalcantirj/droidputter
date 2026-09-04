@@ -20,6 +20,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -27,18 +28,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.droidputter.core.catalog.BuildProxy
 import com.droidputter.core.catalog.CatalogEntry
 import com.droidputter.core.catalog.LauncherHub
 import com.droidputter.core.catalog.VerdictSummary
 
 /**
- * The catalog, two sources side by side (Felipe, 2026-09-03: "hold data, not files"; nothing is bundled):
- * - **Droidputter builds** (`apps/catalog.json`, fetched live): apps rebuilt against the shim -- the phone is
- *   the screen, keyboard and GPS. Bins are downloaded by url at flash time.
+ * The catalog, two tabs (Felipe, 2026-09-03: "hold data, not files"; nothing is bundled):
+ * - **Droidputter builds**: first this phone's own proxy builds ([myBuilds], source "proxy"), then the
+ *   `apps/catalog.json` recipes (fetched live). Apps rebuilt against the shim -- the phone is the screen,
+ *   keyboard and GPS. Bins are downloaded by url at flash time. On top, "Build any GitHub repo".
  * - **LauncherHub** (the M5Burner firmware feed behind bmorcelli's Launcher catalog): prebuilt bins the phone
  *   flashes out of the box; the app then runs on the Cardputer's own screen and keys (no shim = no mirror).
- * One entry's details, "Flash from phone" (esptool ROM protocol over the same OTG port) and the community
- * verdict for that exact firmware hash.
+ * One entry's details, "Flash from phone" (esptool ROM protocol over the same OTG port), the community
+ * verdict for that exact firmware hash and -- for any entry whose source is a GitHub repo -- "Build mirror
+ * version": the build proxy rebuilds it against the shim on demand (Felipe, 2026-09-04) and the ready build
+ * lands in [myBuilds] ([navigateTo] then opens it so "Flash from phone" is right there).
  */
 @Composable
 fun CatalogScreen(
@@ -55,6 +60,12 @@ fun CatalogScreen(
     promptVerdictFor: CatalogEntry? = null,
     hubEntries: List<CatalogEntry> = emptyList(),
     hubStatus: String? = null,
+    myBuilds: List<CatalogEntry> = emptyList(),
+    buildState: BuildRequestState? = null,
+    onBuild: (slug: String, seed: CatalogEntry?) -> Unit = { _, _ -> },
+    onOpenUrl: (String) -> Unit = {},
+    navigateTo: CatalogEntry? = null,
+    onNavigated: () -> Unit = {},
 ) {
     var selected: CatalogEntry? by remember { mutableStateOf(null) }
     var tab by remember { mutableIntStateOf(0) }
@@ -63,6 +74,14 @@ fun CatalogScreen(
     // System back: detail -> list -> mirror. Without this the gesture finishes the activity
     // (and drops the link); with 11 entries the list also pushed the Back button off-screen.
     BackHandler { if (selected != null) selected = null else onClose() }
+    // A build that just became ready: open its detail on the Droidputter tab, once.
+    LaunchedEffect(navigateTo) {
+        if (navigateTo != null) {
+            tab = 0
+            selected = navigateTo
+            onNavigated()
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Text("Catalog", style = MaterialTheme.typography.headlineSmall)
@@ -70,15 +89,17 @@ fun CatalogScreen(
 
         if (current == null) {
             TabRow(selectedTabIndex = tab) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Droidputter builds (${entries.size})") })
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Droidputter builds (${myBuilds.size + entries.size})") })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("LauncherHub (${hubEntries.size})") })
             }
             Text(
-                if (tab == 0) "Rebuilt against the shim: the phone is the screen, keyboard and GPS. Bins download at flash time."
+                if (tab == 0) "Rebuilt against the shim: the phone is the screen, keyboard and GPS. Bins download at flash time. " +
+                    "Your own proxy builds list first; any GitHub repo can be built on demand below."
                 else (hubStatus ?: "LauncherHub feed") + ". Prebuilt, flash only: the app runs on the Cardputer's own screen.",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(vertical = 4.dp),
             )
+            if (tab == 0) BuildAnyRepoRow(state = buildState, onBuild = { slug -> onBuild(slug, null) }, onOpenUrl = onOpenUrl)
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -86,7 +107,7 @@ fun CatalogScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            val source = if (tab == 0) entries else hubEntries
+            val source = if (tab == 0) myBuilds + entries else hubEntries
             val shown = if (query.isBlank()) source else source.filter { it.matches(query) }
             if (shown.isEmpty()) {
                 Text(
@@ -121,6 +142,10 @@ fun CatalogScreen(
                 summary = summaryOf(current),
                 onVerdict = { works -> onVerdict(current, works) },
                 promptVerdict = promptVerdictFor?.let { it.name == current.name && it.env == current.env } ?: false,
+                buildSlug = BuildProxy.slugOf(current),
+                buildState = buildState,
+                onBuild = { slug -> onBuild(slug, current) },
+                onOpenUrl = onOpenUrl,
             )
         }
     }
@@ -131,12 +156,17 @@ private fun rowText(entry: CatalogEntry, summary: VerdictSummary?): String = bui
     append(verdictMark(summary)).append(' ').append(entry.name)
     if (entry.mirror) append(" — ${entry.env} (${entry.board})") else append(" — ${entry.board}${feedVersion(entry)?.let { " v$it" } ?: ""}")
     if (!entry.mirror) append("  · flash only")
+    if (entry.source == CatalogEntry.SOURCE_PROXY) append("  · your proxy build")
     if (licenseUndeclared(entry)) append("  · no license")
 }
 
 private fun CatalogEntry.matches(q: String): Boolean =
     name.contains(q, ignoreCase = true) || description.contains(q, ignoreCase = true) ||
         sourceRepo.contains(q, ignoreCase = true) || board.contains(q, ignoreCase = true)
+
+/** The upstream commit recorded by BuildProxy.toCatalogEntry in sourceRef ("repo=... commit=abc"); null when unknown. */
+private fun upstreamCommit(entry: CatalogEntry): String? =
+    entry.sourceRef?.split(' ')?.firstOrNull { it.startsWith("commit=") }?.removePrefix("commit=")?.takeIf { it.isNotEmpty() }
 
 /** The feed version recorded by LauncherHub.parseFeed in sourceRef ("fid=... version=1.2"); null for shim builds. */
 private fun feedVersion(entry: CatalogEntry): String? =
@@ -154,6 +184,10 @@ private fun CatalogDetail(
     summary: VerdictSummary? = null,
     onVerdict: (Boolean) -> Unit = {},
     promptVerdict: Boolean = false,
+    buildSlug: String? = null,
+    buildState: BuildRequestState? = null,
+    onBuild: (slug: String) -> Unit = {},
+    onOpenUrl: (String) -> Unit = {},
 ) {
     // Scrollable: in landscape the parts list pushes the buttons below the fold, where
     // neither the D-pad nor a swipe could reach them (2026-09-03 14:11 on the Poco).
@@ -164,6 +198,12 @@ private fun CatalogDetail(
         Text(entry.name, style = MaterialTheme.typography.titleLarge)
         Text("Board: ${entry.board}")
         if (entry.mirror) Text("Build env: ${entry.env}") else Text("Source: LauncherHub / M5Burner feed" + (feedVersion(entry)?.let { ", version $it" } ?: ""))
+        if (entry.source == CatalogEntry.SOURCE_PROXY) {
+            Text(
+                "Built on demand by the build proxy for this phone" + (upstreamCommit(entry)?.let { " (upstream commit $it)" } ?: "") + ".",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         Text(entry.description)
         if (entry.sourceRepo.isNotEmpty()) Text("Source: ${entry.sourceRepo}")
         Text(if (entry.license.isEmpty()) "License: not stated in the feed -- see the source link" else "License: ${entry.license}")
@@ -224,7 +264,22 @@ private fun CatalogDetail(
                 Text("Share to flasher")
             }
         } else {
-            Text("No download url for this entry's parts yet (catalog metadata only) -- flash and share disabled.")
+            Text(
+                "No download url for this entry's parts (catalog metadata only) -- flash and share disabled." +
+                    if (buildSlug != null) " Build the mirror version below to get flashable parts." else "",
+            )
+        }
+        if (buildSlug != null) {
+            // Any GitHub-sourced entry (recipe, LauncherHub prebuilt, or an earlier proxy build) can be rebuilt
+            // against the shim on demand; the ready build lands on the Droidputter tab with url + sha256 parts.
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            BuildRequestPanel(
+                state = buildState,
+                slug = buildSlug,
+                isRebuild = entry.source == CatalogEntry.SOURCE_PROXY,
+                onBuild = { onBuild(buildSlug) },
+                onOpenUrl = onOpenUrl,
+            )
         }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
             Text("Back to list")
