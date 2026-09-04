@@ -144,7 +144,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* denial just hides the notification */ }
     private val requestLocationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) gpsFeed.start()
+            if (granted) { gpsFeed.start(); refreshLinkService() }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -336,7 +336,7 @@ class MainActivity : ComponentActivity() {
                 // off -- start it only while actually Linked, so it never lingers after a
                 // detach/error and the OS doesn't see an idle foreground service.
                 if (status.state == LinkState.LINKED) {
-                    LinkForegroundService.start(this, "Linked to ${status.deviceName ?: "device"}")
+                    LinkForegroundService.start(this, linkSubtitle(status.deviceName), location = gpsStatus.active)
                 } else {
                     LinkForegroundService.stop(this)
                 }
@@ -358,14 +358,26 @@ class MainActivity : ComponentActivity() {
     private fun toggleGpsFeed() {
         if (gpsStatus.active) {
             gpsFeed.stop()
+            refreshLinkService()
             return
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             gpsFeed.start()
+            refreshLinkService()
         } else {
             requestLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
+
+    private fun linkSubtitle(deviceName: String?): String =
+        "Linked to ${deviceName ?: "device"}" + if (gpsStatus.active) " · GPS feed on" else ""
+
+    /** While linked, re-issue the foreground service start so its type mask follows the GPS feed (LOCATION on/off). */
+    private fun refreshLinkService() {
+        if (connectionStatus.state == LinkState.LINKED) LinkForegroundService.start(this, linkSubtitle(connectionStatus.deviceName), location = gpsStatus.active)
+    }
+
+    @Volatile private var gpsSentencesSent = 0
 
     /** [GpsFeed]'s sentence callback: only actually goes out over the wire while linked (the
      * task's "streams ... while linked"), so a fix arriving before/after a link drop is not lost
@@ -373,6 +385,8 @@ class MainActivity : ComponentActivity() {
     private fun sendGpsSentence(sentence: String, @Suppress("UNUSED_PARAMETER") source: GpsSentenceSource) {
         if (connectionStatus.state == LinkState.LINKED) {
             transport?.write(encodeGpsNmea(sentence))
+            // One log line per 30 sentences: enough to see in logcat that the feed survives screen-off / Doze.
+            if (++gpsSentencesSent % 30 == 1) Log.d(TAG, "gps tx #$gpsSentencesSent ${sentence.take(40)}")
         }
     }
 

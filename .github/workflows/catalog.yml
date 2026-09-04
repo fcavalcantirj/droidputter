@@ -1,0 +1,186 @@
+# Whole-catalog rebuild on GitHub runners (plan step A3, "all on git like esp-atlas"): builds every CI-buildable
+# entry of tools/make_catalog.py's APPS list against the shim and indexes THOSE bins into a catalog.json.
+# Why runners and not the Mac: the same upstream commit builds to a different firmware.bin on the Mac and on a
+# runner (absolute source paths end up in the binary), so the hashes the phone verifies must all come from one
+# canonical builder.
+#
+#   gh workflow run catalog.yml      # or any push to main touching the shim, a recipe, or the two tools
+#
+# Per entry: overlay recipes run `tools/overlay.py <owner/repo> --name <name> --build` (regenerates the ini from
+# upstream HEAD on purpose -- the catalog tracks upstream), in-repo recipes run `shim/apply.sh` + `pio run`;
+# pense-bem (private source, "ci": false) is skipped by the matrix. Artifacts: one `<name>-<env>` per entry
+# (bootloader.bin partitions.bin boot_app0.bin firmware.bin build.json SHA256SUMS) and `catalog`
+# (dist/catalog.json + every bin). Publishing the catalog and hosting the bins is a LATER step gated on the
+# founder's hosting decision (see the `publish` placeholder at the bottom): this workflow never tags, never commits.
+name: catalog
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "shim/**"
+      - "apps/*/platformio.ini"
+      - "tools/make_catalog.py"
+      - "tools/overlay.py"
+      - ".github/workflows/catalog.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog
+  cancel-in-progress: true   # a newer push supersedes a running rebuild of the whole catalog
+
+env:
+  ESPRESSIF32_VERSION: "6.12.0"   # the platform pin in tools/overlay.py ENV_TEMPLATE (arduino-esp32 2.0.17)
+  PLATFORMIO_VERSION: "6.1.19"    # same PlatformIO Core as build-app.yml and the Mac -> shares its ~/.platformio cache
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.m.outputs.include }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CI-buildable entries (tools/make_catalog.py --ci-matrix)
+        id: m
+        run: |
+          set -o pipefail
+          python3 tools/make_catalog.py --ci-matrix > matrix.json   # skipped entries are listed on stderr
+          python3 -m json.tool matrix.json
+          echo "include=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: matrix
+    name: ${{ matrix.name }}-${{ matrix.env }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4           # kind to the free runners; ~2 min per app once ~/.platformio is cached (run 33919498873)
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.include) }}
+    env:
+      NAME: ${{ matrix.name }}
+      PIO_ENV: ${{ matrix.env }}
+      KIND: ${{ matrix.kind }}
+      REPO: ${{ matrix.repo }}       # owner/name for overlay entries, empty for in-repo ones
+      APP_DIR: ${{ matrix.app_dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO core dir (platform, toolchain, framework, global libs)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            !~/.platformio/.cache
+          key: ${{ runner.os }}-platformio-espressif32-${{ env.ESPRESSIF32_VERSION }}-pio${{ env.PLATFORMIO_VERSION }}
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --quiet "platformio==${PLATFORMIO_VERSION}"
+          pio --version
+
+      - name: Build (overlay -> tools/overlay.py --build from upstream HEAD; inrepo -> shim/apply.sh + pio run)
+        run: |
+          set -o pipefail
+          case "$KIND" in
+            overlay)
+              python3 tools/overlay.py "$REPO" --name "$NAME" --build | tee overlay.out
+              tail -n 1 overlay.out > build.json     # overlay.py's JSON line: upstream_commit, ram, flash, ...
+              git diff --quiet -- "$APP_DIR/platformio.ini" \
+                || echo "::notice title=$NAME::regenerated $APP_DIR/platformio.ini differs from the committed one (upstream moved)"
+              ;;
+            inrepo)
+              bash shim/apply.sh "$APP_DIR"
+              (cd "$APP_DIR" && pio run -e "$PIO_ENV")
+              # source_ref = this commit: the sources an in-repo recipe builds live in this repo (shim/upstream/)
+              python3 -c 'import json, os, sys; json.dump({"name": os.environ["NAME"], "env": os.environ["PIO_ENV"], "kind": "inrepo", "app": os.environ["APP_DIR"], "source_ref": os.environ["GITHUB_SHA"], "ok": True}, sys.stdout)' > build.json
+              ;;
+            *)
+              echo "unknown kind: $KIND"; exit 1
+              ;;
+          esac
+          cat build.json
+
+      - name: Collect artifact
+        run: |
+          B="$APP_DIR/.pio/build/$PIO_ENV"
+          mkdir -p dist
+          cp "$B/bootloader.bin" "$B/partitions.bin" "$B/firmware.bin" dist/
+          cp "$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin" dist/
+          cp build.json dist/
+          (cd dist && sha256sum bootloader.bin partitions.bin boot_app0.bin firmware.bin | tee SHA256SUMS && ls -l)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-${{ matrix.env }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Build log tail (on failure)
+        if: failure()
+        run: |
+          echo "::group::overlay.py output / build.json"; cat overlay.out build.json 2>/dev/null || echo "(none)"; echo "::endgroup::"
+          tail -n 200 "$APP_DIR/.pio/overlay-build.log" 2>/dev/null || echo "no $APP_DIR/.pio/overlay-build.log (in-repo builds log to the console above)"
+
+  catalog:
+    needs: build
+    if: ${{ !cancelled() }}     # index whatever built; a failed leg is a missing entry in the summary (and a red build job)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # make_catalog.py's shim_commit = `git log -1 -- shim/`, needs the history
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist            # every artifact of this run lands in dist/<name>-<env>/, the --bins-root layout
+
+      - name: Verify each artifact against its SHA256SUMS
+        run: |
+          for d in dist/*/; do (cd "$d" && sha256sum -c --quiet SHA256SUMS) || { echo "corrupt artifact: $d"; exit 1; }; done
+          ls dist
+
+      - name: Index the CI builds (tools/make_catalog.py --bins-root)
+        run: |
+          python3 tools/make_catalog.py --bins-root dist --out dist/catalog.json > catalog.out 2> catalog.err || status=$?
+          cat catalog.out; cat catalog.err >&2
+          exit "${status:-0}"
+
+      - name: Summary (entries built, entries missing)
+        if: always()
+        run: |
+          {
+            echo "## catalog: $(python3 -c 'import json; print(len(json.load(open("dist/catalog.json"))))' 2>/dev/null || echo 0) entries (shim $(git log -1 --format=%h -- shim/))"
+            echo '```'; cat catalog.out 2>/dev/null; echo '```'
+            echo "### missing (not built or not CI-buildable)"
+            echo '```'; cat catalog.err 2>/dev/null || true; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: catalog
+          path: dist/
+          if-no-files-found: error
+
+  # PLACEHOLDER -- does nothing yet. Publishing = putting dist/catalog.json where the phone reads it and the bins
+  # where it downloads them (BIN_URL_TEMPLATE in tools/make_catalog.py is None until then). Both need the founder's
+  # hosting decision (GitHub release -- but this repo never tags without his word --, orphan branch, GitHub Pages,
+  # LauncherHub upload, ...). Until the repository variable BIN_HOST is set the job is skipped; when it is, fill in
+  # the upload steps here, set BIN_URL_TEMPLATE to match, and raise `permissions` for THIS job only.
+  publish:
+    needs: [build, catalog]     # every build green or nothing: a partial catalog is never published
+    if: vars.BIN_HOST != ''
+    runs-on: ubuntu-latest
+    env:
+      BIN_HOST: ${{ vars.BIN_HOST }}
+    steps:
+      - run: echo "BIN_HOST=$BIN_HOST is set but publishing is not implemented yet -- nothing done"

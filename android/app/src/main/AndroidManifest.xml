@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- background GPS: the link service also declares the location type while the GPS feed runs, so
+         Android keeps delivering fixes with the screen off (API 34+ requires the matching permission) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
@@ -40,7 +43,7 @@
         <service
             android:name=".link.LinkForegroundService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|location" />
 
         <!-- Catalog screen's "Share to flasher": hands bin-part bytes to ESP32_Flasher (or any
              installed flasher) via a content:// URI, never a raw file:// path (blocked by

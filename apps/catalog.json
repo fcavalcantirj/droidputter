@@ -29,11 +29,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 506560,
-        "sha256": "44ec3bf1729deefe9134a7b1dfbe4a5c753c0fb03ee96f3aab7f13dda5f77ebb"
+        "size": 506960,
+        "sha256": "db9144d9f83a35676e7f27a8fa188e0a60ed66e76404e63977625a14396d27b8"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -67,11 +67,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 451808,
-        "sha256": "39a782c910cf7448ea5dbe77dc2ecce30edf64792ea5441e496c4a01129052ab"
+        "size": 452208,
+        "sha256": "02b28f6a92efd5dc8d2ca2203db1dbfd1c86810c1b13c9a8aacd71c5631387ca"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -105,11 +105,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 465344,
-        "sha256": "f255fc8ef5ab72d4bef199e1276caa2b4ff3ef42ecf0cf565206f2f081a2f3a1"
+        "size": 465728,
+        "sha256": "b97071e5cdeb063d5b946e63f39b8daba2bfcd36b2f4d464942483c847ea4bc0"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -143,11 +143,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 512096,
-        "sha256": "04d5e89ffce222e30d8f5d1ce75f11ae42e441332a9689f9a80c03a482d72c12"
+        "size": 512496,
+        "sha256": "c9a4e0f4c618f1afdfc4536f96ba50e387a66e025cb8267c3ebec531df2c5b06"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -181,11 +181,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1500880,
-        "sha256": "a827e30503f5aec3991cce9722a14ee42d76fcbccde425a130aff6ed4696b8d2"
+        "size": 1501280,
+        "sha256": "fb5cab7eeed61f349c5cea67a62af13c2b4e1f7bda8d2f4862a2a5a133244068"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -219,11 +219,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1113008,
-        "sha256": "4c98d0dda241f1783da93d8ef5dacbaedb7efd0f3f55d3782f87c9f392f62979"
+        "size": 1113232,
+        "sha256": "bd6f20a03ff29921bc133d8dcc9f13088a5d28c8e92a269e542a13aa3c91bb5b"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -257,11 +257,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1832672,
-        "sha256": "704f25998000d62ee5b87a7b050ac91e924a1a039bb6ae9e83e323ecb9cafcfe"
+        "size": 1833072,
+        "sha256": "4f96a22f6ff09575175b43f959307beffc96f259e3549b162d53ace29a46dc09"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -295,11 +295,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1257040,
-        "sha256": "2adbaf338b04f239b156b13927e92df39405ac4c3143db08944013ffaa67126f"
+        "size": 1257440,
+        "sha256": "e8f7c009b9ad6590b39c743962e04893b83fd893777c8c5137751f8693f1cf52"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -333,11 +333,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1115600,
-        "sha256": "57e1f050c3763b11bd08abaa609b4cf2f6ebe06be26877305324d67c15d6c3a9"
+        "size": 1115984,
+        "sha256": "27018a5d6b90c714525e50e065a9c886c7bf0ab4e54c4bbe2307af7ee8568c59"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -371,11 +371,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 933888,
-        "sha256": "6101deef4b8dbc0667686137625fef2179f5cfa07b0b22c0fb4be5e63938d6d1"
+        "size": 934272,
+        "sha256": "0367149502b3ee27e7e5dbb1e1413161847bfdb3a58f85a0e8d0a2f6d84cda5a"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -409,11 +409,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 3277552,
-        "sha256": "e05682c813127d430aea19d30eaa80dbc1ede7096eed5d73bc584b0c92c78584"
+        "size": 3277952,
+        "sha256": "3d0b6470cf301801c7f58d09790d31598e144dfdb3c653273db197426b15e95d"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -447,11 +447,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 842928,
-        "sha256": "74a553a62e850e5b3a0643d810787e6a001c0f900af65eb80527c0836fab221c"
+        "size": 843136,
+        "sha256": "5fc33aee8ffbae320b4567e1ccfad7139bb6eed18a565190fd55cc90afd49bdf"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -485,11 +485,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 693888,
-        "sha256": "0a0f54244912f9a9a686a5b6346289edb733dbd57f4f1a3f02e72dd2c18bf3a0"
+        "size": 694096,
+        "sha256": "7ecb44ac22ec8f800a4c567e6907f770b70b04a914509f0c404e5fbbb5341b59"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -523,11 +523,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 495776,
-        "sha256": "99b4c30f6ba26527dbc7610be4f20c8d11653e79d85fb95cb0757f6c1adca310"
+        "size": 496000,
+        "sha256": "8f883c23f6b661163577e973392e5d43c6f9730a12c0549f115f36b4ed688651"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -561,11 +561,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1361104,
-        "sha256": "2c2f2017bf69cf175d47c4afbf60b0a9bf13e01db5417b924d73009f5411bc41"
+        "size": 1361328,
+        "sha256": "5a9a90561f518195d79ac1f89db0e268d011b59020ea4efee3666cee3f37422a"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -599,11 +599,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 748144,
-        "sha256": "37baff4a67dd03f550b093332f333f61c71494e5e56c1e5043bd80822129f71f"
+        "size": 748352,
+        "sha256": "8b5c42e0e917ffb2c4ec276bb1ce784ceafc2f83cf7e8ee50b5ac80d627e1e48"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -637,11 +637,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1273568,
-        "sha256": "d36e61f6d69b90167fb752da1b8c874c8056fad2165834f820f373abb0d0c6cc"
+        "size": 1273776,
+        "sha256": "d056c85fe18dd1e6f380bccdff78280b11acb6512b6f54722393c423bc2a589b"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -675,11 +675,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 591200,
-        "sha256": "e5d622d07f78cf71f66aae127a995955d081e7c758ebbf3cfbe7003fc7e8aa75"
+        "size": 591424,
+        "sha256": "a996e2cba4144929c01c0cfa82ed1dcb009106eb5fe9edbc60d784f20fe4476d"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   },
@@ -713,11 +713,11 @@
       {
         "offset": "0x10000",
         "file": "firmware.bin",
-        "size": 1384624,
-        "sha256": "a21c89b9608882b3a0fce3db61c5d3015f827c9c0cfba7e5a7dbc95a07b5b3d8"
+        "size": 1384832,
+        "sha256": "9cd4258cfaa51e28929a1411aa621b1ff8cd9836b31e18b765e334ac37155fe3"
       }
     ],
-    "shim_commit": "5ddae78",
+    "shim_commit": "bd8cba0",
     "source": "droidputter",
     "mirror": true
   }
