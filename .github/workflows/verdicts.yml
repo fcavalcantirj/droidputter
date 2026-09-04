@@ -58,6 +58,9 @@ jobs:
           NUMBER: ${{ github.event.issue.number }}
           STATUS: ${{ steps.fold.outputs.status }}
         run: |
+          # An issue created WITH the label fires both `opened` and `labeled`: the second run finds the
+          # duplicate and must stay silent once the first one has closed the issue.
+          [ "$(gh issue view "$NUMBER" --json state --jq .state)" = OPEN ] || { echo "already closed, nothing to say"; exit 0; }
           if [ "$STATUS" = folded ]; then
             MSG="Folded into apps/verdicts.json ($(git rev-parse --short HEAD)). The app picks it up on its next Catalog refresh. Thank you."
           else

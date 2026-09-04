@@ -33,7 +33,9 @@
         "sha256": "44ec3bf1729deefe9134a7b1dfbe4a5c753c0fb03ee96f3aab7f13dda5f77ebb"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "pense-bem",
@@ -69,7 +71,9 @@
         "sha256": "39a782c910cf7448ea5dbe77dc2ecce30edf64792ea5441e496c4a01129052ab"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "m5-example",
@@ -105,7 +109,9 @@
         "sha256": "f255fc8ef5ab72d4bef199e1276caa2b4ff3ef42ecf0cf565206f2f081a2f3a1"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "m5-example",
@@ -141,7 +147,9 @@
         "sha256": "04d5e89ffce222e30d8f5d1ce75f11ae42e441332a9689f9a80c03a482d72c12"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "pigtail",
@@ -177,7 +185,9 @@
         "sha256": "a827e30503f5aec3991cce9722a14ee42d76fcbccde425a130aff6ed4696b8d2"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "stellar-map",
@@ -213,7 +223,9 @@
         "sha256": "4c98d0dda241f1783da93d8ef5dacbaedb7efd0f3f55d3782f87c9f392f62979"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "m5porkchop",
@@ -249,7 +261,9 @@
         "sha256": "704f25998000d62ee5b87a7b050ac91e924a1a039bb6ae9e83e323ecb9cafcfe"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "cardputer-iss-tracker",
@@ -285,7 +299,9 @@
         "sha256": "2adbaf338b04f239b156b13927e92df39405ac4c3143db08944013ffaa67126f"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "bluetooth-keyboard-mouse-emulator",
@@ -321,7 +337,9 @@
         "sha256": "57e1f050c3763b11bd08abaa609b4cf2f6ebe06be26877305324d67c15d6c3a9"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "m5cardputer-audio-stream-server",
@@ -357,7 +375,9 @@
         "sha256": "6101deef4b8dbc0667686137625fef2179f5cfa07b0b22c0fb4be5e63938d6d1"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "ultimate-remote",
@@ -393,7 +413,9 @@
         "sha256": "e05682c813127d430aea19d30eaa80dbc1ede7096eed5d73bc584b0c92c78584"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "m5-palnagotchi",
@@ -429,7 +451,9 @@
         "sha256": "74a553a62e850e5b3a0643d810787e6a001c0f900af65eb80527c0836fab221c"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "cardputer",
@@ -465,7 +489,9 @@
         "sha256": "0a0f54244912f9a9a686a5b6346289edb733dbd57f4f1a3f02e72dd2c18bf3a0"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "m5cardputer_audiospectrum",
@@ -501,7 +527,9 @@
         "sha256": "99b4c30f6ba26527dbc7610be4f20c8d11653e79d85fb95cb0757f6c1adca310"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "cardputer-system-monitor",
@@ -537,7 +565,9 @@
         "sha256": "2c2f2017bf69cf175d47c4afbf60b0a9bf13e01db5417b924d73009f5411bc41"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "miniacid",
@@ -573,7 +603,9 @@
         "sha256": "37baff4a67dd03f550b093332f333f61c71494e5e56c1e5043bd80822129f71f"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "m5cardputer_webradio",
@@ -609,7 +641,9 @@
         "sha256": "d36e61f6d69b90167fb752da1b8c874c8056fad2165834f820f373abb0d0c6cc"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "cardputergpsmap",
@@ -645,7 +679,9 @@
         "sha256": "e5d622d07f78cf71f66aae127a995955d081e7c758ebbf3cfbe7003fc7e8aa75"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   },
   {
     "name": "tiny-journal",
@@ -681,6 +717,8 @@
         "sha256": "a21c89b9608882b3a0fce3db61c5d3015f827c9c0cfba7e5a7dbc95a07b5b3d8"
       }
     ],
-    "shim_commit": "b278863"
+    "shim_commit": "5ddae78",
+    "source": "droidputter",
+    "mirror": true
   }
 ]

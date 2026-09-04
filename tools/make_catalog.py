@@ -225,6 +225,11 @@ def shim_commit() -> str:
 
 SHIM_COMMIT = shim_commit()
 
+# Where the phone downloads a shim build's parts from (the APK bundles no binaries since 2026-09-04).
+# Placeholders: {name} {env} {file} {sha256}. None = no url yet: the entry lists but cannot be flashed from
+# the phone -- set once the hosting decision (GitHub release / branch / LauncherHub upload) is taken.
+BIN_URL_TEMPLATE = None
+
 
 def build_entry(app: dict) -> dict:
     build_dir = REPO_ROOT / app["build_dir"]
@@ -233,14 +238,15 @@ def build_entry(app: dict) -> dict:
         path = BOOT_APP0 if filename is None else build_dir / filename
         if not path.is_file():
             raise FileNotFoundError(f"{app['name']}/{app['env']}: missing {path}")
-        parts.append(
-            {
-                "offset": hex(offset),
-                "file": path.name,
-                "size": path.stat().st_size,
-                "sha256": sha256_of(path),
-            }
-        )
+        part = {
+            "offset": hex(offset),
+            "file": path.name,
+            "size": path.stat().st_size,
+            "sha256": sha256_of(path),
+        }
+        if BIN_URL_TEMPLATE:
+            part["url"] = BIN_URL_TEMPLATE.format(name=app["name"], env=app["env"], file=path.name, sha256=part["sha256"])
+        parts.append(part)
     return {
         "name": app["name"],
         "board": app["board"],
@@ -251,6 +257,8 @@ def build_entry(app: dict) -> dict:
         "build_dir": app["build_dir"],
         "parts": parts,
         "shim_commit": SHIM_COMMIT,
+        "source": "droidputter",   # a shim rebuild: the phone is the screen (vs "launcherhub" prebuilt, flash only)
+        "mirror": True,
     }
 
 
