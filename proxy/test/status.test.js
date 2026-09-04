@@ -58,7 +58,7 @@ describe("GET /api/build/{request_id}", () => {
     assert.deepEqual(body.build, { upstream_commit: "0123456789abcdef0123456789abcdef01234567", ram: "38.5% (126124 B)", flash: "33.3% (2267241 B)" });
     assert.deepEqual(
       body.parts.map((p) => [p.file, p.offset]),
-      [["bootloader.bin", 0x0], ["partitions.bin", 0x8000], ["boot_app0.bin", 0xe000], ["firmware.bin", 0x10000]],
+      [["bootloader.bin", "0x0"], ["partitions.bin", "0x8000"], ["boot_app0.bin", "0xe000"], ["firmware.bin", "0x10000"]],
     );
     for (const p of body.parts) {
       assert.equal(p.size, DEFAULT_PARTS[p.file].byteLength);

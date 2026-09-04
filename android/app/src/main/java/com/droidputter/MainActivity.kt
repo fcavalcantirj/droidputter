@@ -126,7 +126,8 @@ class MainActivity : ComponentActivity() {
     private val buildFlow: BuildFlow by lazy {
         BuildFlow(
             scope = lifecycleScope,
-            client = BuildProxyClient(),
+            // debug builds can point at a LAN proxy (-PproxyBaseUrl); otherwise the deployed one
+            client = BuildProxyClient(BuildConfig.PROXY_BASE_URL.ifEmpty { com.droidputter.core.catalog.BuildProxy.DEFAULT_BASE_URL }),
             myBuilds = myBuildsRepository,
             onState = { s -> buildState = s },
             onReady = { entry -> buildsVersion++; catalogNavigateTo = entry },

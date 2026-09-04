@@ -104,7 +104,8 @@ export function partsOf(parsed, { runId, baseUrl }) {
     if (listed && listed !== computed) throw new ArtifactError(`${file} does not match SHA256SUMS in run ${runId}`, 502);
     return {
       file,
-      offset: PART_OFFSETS[/** @type {keyof typeof PART_OFFSETS} */ (file)],
+      // Contract v1: offsets are "0x…" strings (the phone parses them as hex, like apps/catalog.json).
+      offset: "0x" + PART_OFFSETS[/** @type {keyof typeof PART_OFFSETS} */ (file)].toString(16),
       size: bytes.byteLength,
       sha256: listed || computed,
       url: `${baseUrl}/api/artifact/${runId}/${file}`,

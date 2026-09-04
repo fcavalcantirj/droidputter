@@ -32,7 +32,7 @@ describe("artifact parsing", () => {
 
   test("partsOf: fixed offsets, sizes from the zip, sha from SHA256SUMS verified against the bytes", () => {
     const parts = partsOf(parseArtifactZip(makeZip()), { runId: "7", baseUrl: "https://p" });
-    assert.deepEqual(parts.map((p) => p.offset), [0x0, 0x8000, 0xe000, 0x10000]);
+    assert.deepEqual(parts.map((p) => p.offset), ["0x0", "0x8000", "0xe000", "0x10000"]);
     assert.deepEqual(parts.map((p) => p.size), PART_FILES.map((f) => DEFAULT_PARTS[f].byteLength));
     assert.deepEqual(parts.map((p) => p.sha256), PART_FILES.map((f) => sha256(DEFAULT_PARTS[f])));
     assert.deepEqual(parts.map((p) => p.url), PART_FILES.map((f) => `https://p/api/artifact/7/${f}`));
