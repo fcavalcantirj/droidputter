@@ -252,6 +252,16 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text("Replay fixture")
                                     }
+                                } else {
+                                    // Felipe 2026-09-04: "the repaint one ... forced refresh both" -- the mirror can lag
+                                    // the board for a moment after a relink; one tap re-sends HELLO_ACK and the ESP
+                                    // repaints the whole screen (link-up resync) into the phone's copy.
+                                    Button(
+                                        onClick = { sendHelloAckNow() },
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                                    ) {
+                                        Text("Repaint")
+                                    }
                                 }
                                 // Hide the soft keyboard for a full-height mirror (8x on the Poco).
                                 Button(
