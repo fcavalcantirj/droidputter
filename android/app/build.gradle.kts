@@ -21,7 +21,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Dev-key signed until Felipe supplies a release keystore (a store secret is his call). CI signs with
+            // the runner's throwaway debug key, so a CI-built release APK is re-signed on the Mac with
+            // ~/.android/debug.keystore (apksigner) before `adb install -r` over the debug build.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

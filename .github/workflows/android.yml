@@ -1,6 +1,8 @@
 # Debug APK on a GitHub runner: `:core` tests + kover gate + `:app:assembleDebug`, artifact `app-debug`.
 # Exists because the executor's Mac may be memory-starved (2026-09-04: 26 GB of swap in use, Gradle crawling);
-# the phone is installed from this artifact with `adb install -r`. Never tags, never publishes.
+# the phone is installed from this artifact with `adb install -r`. Also `:app:assembleRelease`, artifact `app-release`:
+# the release APK is R8-minified and signed with the runner's throwaway debug key, re-signed on the Mac before install.
+# Never tags, never publishes.
 name: android
 
 on:
@@ -35,11 +37,17 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon :core:test :core:koverVerify :app:assembleDebug
+          ./gradlew --no-daemon :core:test :core:koverVerify :app:assembleDebug :app:assembleRelease
           bash gates.sh
           ls -la app/build/outputs/apk/debug/app-debug.apk
+          ls -la app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 7
