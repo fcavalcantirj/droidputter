@@ -97,5 +97,16 @@
     "note": "auto: boots=7 hello=true frames=4",
     "date": "2026-09-05",
     "reporter": "device-85ab6cb7"
+  },
+  {
+    "name": "stellar-map",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "0640462ca6de3474a1d6b66dc6413fc6afcf2db44c935a3f3346d5d35a98adca",
+    "shim_commit": "8f4a7be",
+    "board": "unknown",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-05",
+    "reporter": "device-85ab6cb7"
   }
 ]
