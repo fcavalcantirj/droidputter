@@ -102,6 +102,26 @@ class VerdictRepository(private val context: Context, private val proxy: BuildPr
         }
     }
 
+    /** Stored verdicts that never reached the repo (VerdictMerge.unsent: latest opinion per firmware, minus receipts and community copies). */
+    fun unsent(): List<Verdict> = VerdictMerge.unsent(local, remote, sent.keys)
+
+    /** What a resend pass did: the receipts it got, and the reason it stopped, if it did. */
+    data class Resend(val filed: List<VerdictReceipt>, val failed: String?)
+
+    /**
+     * Files every stored-but-unsent verdict, oldest first, under this device's reporter id (records from
+     * before the id existed carry none). Stops at the first failure; the rest waits for the next pass.
+     * Called on every Catalog open after the community refresh, so nothing already filed is filed twice.
+     */
+    suspend fun resendUnsent(): Resend {
+        val filed = ArrayList<VerdictReceipt>()
+        for (v in unsent()) {
+            val record = if (v.reporter.isNullOrBlank()) v.copy(reporter = reporter) else v
+            submit(record).onSuccess { filed += it }.onFailure { return Resend(filed, it.message) }
+        }
+        return Resend(filed, null)
+    }
+
     @Synchronized
     private fun remember(v: Verdict, receipt: VerdictReceipt) {
         sent = sent + (v.submissionKey to receipt)

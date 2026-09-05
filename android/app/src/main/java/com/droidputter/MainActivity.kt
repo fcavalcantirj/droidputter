@@ -143,6 +143,10 @@ class MainActivity : ComponentActivity() {
     @Volatile private var obsFrames = 0
     // ESP console lines seen on the wire (PanicSniffer in the transport): boot resets and panics, so a
     // reboot-looping app -- shim build or prebuilt -- is a fact on the phone, not silence.
+    // Phone-side link counters for the "rx:" line logged beside every STATS (never reset).
+    @Volatile private var rxFrames = 0L
+    @Volatile private var rxChunks = 0L
+    @Volatile private var rxBytes = 0L
     @Volatile private var obsResets = 0
     @Volatile private var obsPanics = 0
     @Volatile private var lastPanicLine: String? = null
@@ -232,8 +236,20 @@ class MainActivity : ComponentActivity() {
                                 Button(
                                     onClick = {
                                         showCatalogScreen = true
-                                        // live community verdicts (falls back to the cached/seed copy offline)
-                                        lifecycleScope.launch { if (verdictRepository.refresh()) verdictVersion++ }
+                                        // live community verdicts (falls back to the cached/seed copy offline), then the
+                                        // verdicts stored on this phone that never reached the repo (offline tap, proxy
+                                        // down, or a tap from before the one-tap POST existed) go out, oldest first.
+                                        lifecycleScope.launch {
+                                            if (verdictRepository.refresh()) verdictVersion++
+                                            val resend = verdictRepository.resendUnsent()
+                                            if (resend.filed.isNotEmpty() || resend.failed != null) {
+                                                val numbers = resend.filed.joinToString(", ") { "#${it.issueNumber}" }
+                                                flashStatus = "stored verdicts: ${resend.filed.size} filed" +
+                                                    (if (numbers.isNotEmpty()) " ($numbers)" else "") +
+                                                    (resend.failed?.let { "; stopped: $it" } ?: "")
+                                                Log.i(TAG, "verdict resend: filed=${resend.filed.size} $numbers failed=${resend.failed}")
+                                            }
+                                        }
                                         // live catalog index (same fallback); the entries list re-reads via catalogVersion
                                         lifecycleScope.launch { if (catalogRepository.refresh()) catalogVersion++ }
                                         // LauncherHub feed: ~3 MB, refreshed at most daily; the list re-reads via hubVersion
@@ -318,6 +334,7 @@ class MainActivity : ComponentActivity() {
                     // Treat it as a detach and let the attach intent bring the link back.
                     try {
                         opened.incoming.collect { bytes ->
+                            rxChunks++; rxBytes += bytes.size
                             framer.feed(bytes).forEach { frame ->
                                 val message = decodeDpMessage(frame) ?: run {
                                     // Unknown types are ignored by the renderer; LOG (0x07) is the
@@ -332,7 +349,7 @@ class MainActivity : ComponentActivity() {
                                     obsHello = true
                                     linkManager.onHelloReceived()
                                 }
-                                if (message is DpMessage.Rect || message is DpMessage.RectRle || message is DpMessage.Fill) obsFrames++
+                                if (message is DpMessage.Rect || message is DpMessage.RectRle || message is DpMessage.Fill) { obsFrames++; rxFrames++ }
                                 if (message is DpMessage.Stats) {
                                     linkRates = statsTracker.onStats(
                                         message.frames,
@@ -340,9 +357,12 @@ class MainActivity : ComponentActivity() {
                                         message.dropped,
                                         System.currentTimeMillis(),
                                     )
+                                    // The phone's side of the same second: what the reader delivered and what the
+                                    // framer made of it. STATS alone cannot show a phone-side loss (2026-09-05 A/B).
+                                    Log.i(TAG, "rx: frames=$rxFrames chunks=$rxChunks bytes=$rxBytes resyncs=${framer.resyncCount} lost=${opened.lostChunks}")
                                 }
                                 screenController.onMessage(message)
-                                Log.d(TAG, "decoded: $message")
+                                Log.d(TAG, "decoded: ${describe(message)}")
                             }
                         }
                     } catch (e: CancellationException) {
@@ -392,6 +412,14 @@ class MainActivity : ComponentActivity() {
         gpsFeed.stop()
         LinkForegroundService.stop(this)
         super.onDestroy()
+    }
+
+    /** One short logcat line per decoded message: geometry and size, never the pixel array itself (a
+     *  RectRle's toString ran to kilobytes 60 times a second on the main thread and logcat truncated it). */
+    private fun describe(m: DpMessage): String = when (m) {
+        is DpMessage.Rect -> "Rect(x=${m.x}, y=${m.y}, w=${m.w}, h=${m.h}, px=${m.pixels.size})"
+        is DpMessage.RectRle -> "RectRle(x=${m.x}, y=${m.y}, w=${m.w}, h=${m.h}, runs=${m.pixels.size})"
+        else -> m.toString()
     }
 
     /** Connection screen's "Start/Stop GPS feed" button: requests ACCESS_FINE_LOCATION on first

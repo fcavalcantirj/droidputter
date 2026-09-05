@@ -25,6 +25,10 @@ class UsbDpTransport(
     // and to [onEspLine] for the flash verdicts.
     private val sniffer = com.droidputter.core.link.PanicSniffer()
     var onEspLine: ((String) -> Unit)? = null
+    /** Reader chunks the flow's buffer could not take (the collector fell behind): each one is a hole the
+     *  framer has to resync over. Reported on the "rx:" logcat line beside every STATS. */
+    @Volatile var lostChunks: Long = 0
+        private set
 
     init {
         port.open(connection)
@@ -58,7 +62,7 @@ class UsbDpTransport(
                         android.util.Log.w("Droidputter", "esp: $line")
                         onEspLine?.invoke(line)
                     }
-                    trySend(data)
+                    if (trySend(data).isFailure) lostChunks++
                 }
 
                 override fun onRunError(e: Exception) {
@@ -66,6 +70,12 @@ class UsbDpTransport(
                 }
             },
         )
+        // The library's default read buffer is the endpoint's max packet size: 64 B on the S3's full-speed
+        // USB-Serial/JTAG, i.e. one USB request per packet (~2,600 JNI round trips/s at the link's 167 KB/s).
+        // A bigger buffer lets one request drain a whole burst; BuildConfig.USB_READ_BUFFER (gradle
+        // -PusbReadBuffer, 0 = library default) so A and B build from the same source (2026-09-05 measurements
+        // in progress.txt).
+        if (com.droidputter.BuildConfig.USB_READ_BUFFER > 0) manager.readBufferSize = com.droidputter.BuildConfig.USB_READ_BUFFER
         ioManager = manager
         ioExecutor.execute(manager)
         awaitClose { manager.stop() }

@@ -117,6 +117,25 @@ object VerdictMerge {
     }
 
     /**
+     * This phone's stored verdicts that never reached the repo: the tap happened offline, the proxy was down,
+     * or it predates the one-tap POST (2026-09-04; four of Felipe's taps sat in my_verdicts.json). One record
+     * per app/env/firmware -- the latest opinion, the badge's rule -- unless a receipt exists for that outcome
+     * or the community list already carries an identical name/env/firmware/result (filed another way, e.g.
+     * from the Mac). A record without a firmware hash cannot be filed. Oldest last-statement first.
+     */
+    fun unsent(local: List<Verdict>, remote: List<Verdict>, sentKeys: Set<String>): List<Verdict> {
+        val filed = remote.map { it.submissionKey }.toSet()
+        val latest = LinkedHashMap<String, Verdict>()
+        for (v in local) {
+            if (v.firmwareSha256.isBlank()) continue
+            val firmware = "${v.name}|${v.env}|${v.firmwareSha256}"
+            latest.remove(firmware)
+            latest[firmware] = v
+        }
+        return latest.values.filter { it.submissionKey !in sentKeys && it.submissionKey !in filed }
+    }
+
+    /**
      * The GitHub "new issue" URL that carries a verdict, in the shape the repo's Action folds into
      * verdicts.json. No longer the phone's submit path (the proxy files the issue); kept as the fallback
      * link for a human without the app or the proxy.

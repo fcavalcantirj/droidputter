@@ -105,4 +105,23 @@ class VerdictTest {
         assertEquals("aa", entry("x", "aa").firmwareSha256)
         assertEquals("", CatalogEntry(name = "x", board = "b", env = "e", description = "", sourceRepo = "", license = "").firmwareSha256)
     }
+
+    @Test
+    fun unsentIsTheLatestOpinionPerFirmwareMinusReceiptsAndCommunityRecords() {
+        val local = listOf(
+            v("m5-example", "", Verdict.RESULT_WORKS, date = "2026-09-03"),              // no hash: cannot be filed
+            v("stellar-map", "aa", Verdict.RESULT_WORKS, date = "2026-09-03"),           // identical record already in the repo
+            v("i2c-scanner", "bb", Verdict.RESULT_WORKS, date = "2026-09-04"),
+            v("i2c-scanner", "bb", Verdict.RESULT_BROKEN, date = "2026-09-04"),          // later opinion for the same firmware
+            v("porkchop", "cc", Verdict.RESULT_WORKS, date = "2026-09-04"),
+            v("porkchop", "cc", Verdict.RESULT_WORKS, date = "2026-09-04", note = "auto"),
+            v("audiospectrum", "dd", Verdict.RESULT_WORKS, date = "2026-09-05"),         // receipt exists
+        )
+        val remote = listOf(v("stellar-map", "aa", Verdict.RESULT_WORKS).copy(reporter = "fcavalcantirj"))
+        val sent = setOf("audiospectrum|m5cardputer|dd|works")
+        val out = VerdictMerge.unsent(local, remote, sent)
+        assertEquals(listOf("i2c-scanner|m5cardputer|bb|broken", "porkchop|m5cardputer|cc|works"), out.map { it.submissionKey })
+        assertEquals("auto", out[1].note)
+        assertEquals(emptyList<Verdict>(), VerdictMerge.unsent(emptyList(), remote, sent))
+    }
 }
