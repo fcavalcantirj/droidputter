@@ -16,6 +16,9 @@
  */
 export function loadConfig(env = process.env) {
   return {
+    // Rotation lane (2026-09-05): the PAT on Vercel has NO expiry set (GET /user returns no
+    // github-authentication-token-expiration header); to rotate: `vercel env rm GITHUB_TOKEN production`,
+    // `vercel env add GITHUB_TOKEN production`, `vercel --prod`, and update the git-ignored proxy/.env.local.
     token: env.GITHUB_TOKEN || "",
     repo: env.GITHUB_REPO || "fcavalcantirj/droidputter",
     workflow: env.WORKFLOW || "build-app.yml",
