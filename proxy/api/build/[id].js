@@ -1,4 +1,6 @@
-// GET /api/build/{request_id} -> {status: queued|building|failed|ready, ...} (see lib/builds.js buildStatus)
+// GET /api/build/{request_id} -> {status: queued|building|failed|ready, env, ...} (see lib/builds.js buildStatus)
+// env is parsed from the run name (m5cardputer when absent); once ready the parts come from the run's
+// <name>-<env> artifact, never from the <name>-<env>-elf one.
 
 import { buildStatus } from "../../lib/builds.js";
 import { baseUrlOf, error, githubOf, json, param, vercel } from "../../lib/http.js";

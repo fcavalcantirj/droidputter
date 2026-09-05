@@ -24,9 +24,10 @@ class MyBuildsRepository(context: Context) {
         if (file.isFile) runCatching { parseCatalog(file.readText()) }.onFailure { Log.w(TAG, "my_builds unreadable: ${it.message}") }.getOrDefault(emptyList())
         else emptyList()
 
-    /** Stores a ready build, newest first; an entry with the same sourceRef (same repo + upstream commit) is replaced. */
+    /** Stores a ready build, newest first; an entry with the same sourceRef (same repo + upstream commit) AND env
+     *  (ADV vs bare ESP32-S3 builds of one commit are two different firmwares) is replaced. */
     fun add(entry: CatalogEntry): CatalogEntry {
-        entries = listOf(entry) + entries.filterNot { it.sourceRef == entry.sourceRef }
+        entries = listOf(entry) + entries.filterNot { it.sourceRef == entry.sourceRef && it.env == entry.env }
         save()
         return entry
     }

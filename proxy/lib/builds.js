@@ -2,30 +2,49 @@
 // dispatch a new one, and map a run to the v1 status object the phone polls.
 //
 // Correlation is by the run's display_title, which GitHub sets to the workflow's run-name:
-//   build <repo>@<ref|HEAD> shim=<shim|?> req=<request_id|->
+//   build <repo>@<ref|HEAD> env=<env> shim=<shim|?> req=<request_id|->
+// A build's identity is (repo, ref, env, shim): the same app for the Cardputer ADV (env=m5cardputer) and for a
+// bare ESP32-S3 (env=m5cardputer-virtual) are two builds. Runs from before the env dimension carry no env= and
+// never match again (no back-compat).
 
 import { randomUUID } from "node:crypto";
-import { buildSummary, loadArtifact, partsOf } from "./artifact.js";
+import { DEFAULT_ENV, buildSummary, loadArtifact, partsOf } from "./artifact.js";
 
 export const IN_FLIGHT_LIMIT = 6;
 export const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const SHIM_TTL_MS = 60 * 1000;
 export const IN_FLIGHT_STATUSES = new Set(["queued", "in_progress", "waiting", "pending", "requested"]);
 
-/** @param {{repo: string, ref?: string, shim?: string, requestId?: string}} p */
-export function runTitle({ repo, ref, shim, requestId }) {
-  return `build ${repo}@${ref || "HEAD"} shim=${shim || "?"} req=${requestId || "-"}`;
+/** @param {{repo: string, ref?: string, env?: string, shim?: string, requestId?: string}} p */
+export function runTitle({ repo, ref, env, shim, requestId }) {
+  return `build ${repo}@${ref || "HEAD"} env=${env || DEFAULT_ENV} shim=${shim || "?"} req=${requestId || "-"}`;
 }
 
-/** Prefix every run of this (repo, ref, shim) shares, trailing space included so shim=abc1234 != abc12345. */
-export function titlePrefix({ repo, ref, shim }) {
-  return `build ${repo}@${ref || "HEAD"} shim=${shim} `;
+/** Prefix every run of this (repo, ref, env, shim) shares, trailing space included so shim=abc1234 != abc12345. */
+export function titlePrefix({ repo, ref, env, shim }) {
+  return `build ${repo}@${ref || "HEAD"} env=${env || DEFAULT_ENV} shim=${shim} `;
 }
 
 /** @param {unknown} title @returns {string | null} the req= value, null when absent or the manual '-' */
 export function requestIdOf(title) {
   const m = typeof title === "string" ? /(?:^|\s)req=(\S+)\s*$/.exec(title) : null;
   return m && m[1] !== "-" ? m[1] : null;
+}
+
+/** @param {unknown} title @returns {string} the env= value; runs from before the env dimension count as the default */
+export function envOf(title) {
+  const m = typeof title === "string" ? /(?:^|\s)env=(\S+)(?:\s|$)/.exec(title) : null;
+  return m ? m[1] : DEFAULT_ENV;
+}
+
+/**
+ * The overlay name, if the run name carries one as name=<name>. The current run-name does not (the dispatch
+ * inputs are not retrievable from a run), so the artifact is then selected by its -<env> suffix instead.
+ * @param {unknown} title @returns {string | null}
+ */
+export function nameOf(title) {
+  const m = typeof title === "string" ? /(?:^|\s)name=(\S+)(?:\s|$)/.exec(title) : null;
+  return m ? m[1] : null;
 }
 
 /** @param {any} run */
@@ -62,18 +81,18 @@ export async function resolveShimCommit(gh, now = Date.now) {
 /** @typedef {{status: number, body: Record<string, unknown>}} Result */
 
 /**
- * POST /api/build.
+ * POST /api/build. A fresh success or an in-flight run counts only for the same (repo, ref, env, shim).
  * @param {import("./github.js").GitHub} gh
- * @param {{repo: string, ref: string, name: string}} input validated
+ * @param {{repo: string, ref: string, name: string, env: string}} input validated
  * @param {{now?: () => number, uuid?: () => string}} [opts]
  * @returns {Promise<Result>}
  */
 export async function createBuild(gh, input, { now = Date.now, uuid = randomUUID } = {}) {
   const shim = await resolveShimCommit(gh, now);
   const runs = await gh.listRuns();
-  const prefix = titlePrefix({ repo: input.repo, ref: input.ref, shim });
+  const prefix = titlePrefix({ repo: input.repo, ref: input.ref, env: input.env, shim });
   const same = runs.filter((r) => titleOf(r).startsWith(prefix) && requestIdOf(titleOf(r)));
-  const echo = { repo: input.repo, ref: input.ref, name: input.name, shim_commit: shim };
+  const echo = { repo: input.repo, ref: input.ref, name: input.name, env: input.env, shim_commit: shim };
 
   const fresh = same.find(
     (r) => r.status === "completed" && r.conclusion === "success" && now() - Date.parse(r.created_at) < CACHE_MAX_AGE_MS,
@@ -94,7 +113,7 @@ export async function createBuild(gh, input, { now = Date.now, uuid = randomUUID
   }
 
   const requestId = uuid();
-  await gh.dispatch({ repo: input.repo, name: input.name, ref: input.ref, request_id: requestId, shim });
+  await gh.dispatch({ repo: input.repo, name: input.name, ref: input.ref, env: input.env, request_id: requestId, shim });
   return { status: 202, body: { request_id: requestId, ...echo, cached: false } };
 }
 
@@ -121,7 +140,8 @@ export function stateOf(run) {
 }
 
 /**
- * The shape the phone polls, minus the artifact part (see buildStatus).
+ * The shape the phone polls, minus the artifact part (see buildStatus). `env` is parsed from the run name
+ * (m5cardputer when the name carries none).
  * @param {any} run
  */
 export function describeRun(run) {
@@ -129,6 +149,7 @@ export function describeRun(run) {
   const base = {
     request_id: requestIdOf(titleOf(run)),
     status: state,
+    env: envOf(titleOf(run)),
     run_id: String(run.id),
     run_url: run.html_url,
     title: titleOf(run),
@@ -140,7 +161,8 @@ export function describeRun(run) {
 }
 
 /**
- * GET /api/build/{request_id}.
+ * GET /api/build/{request_id}. Once ready, the parts come from the run's `<name>-<env>` artifact (never the
+ * `-elf` one): exact when the run name carries the overlay name, else the artifact ending in `-<env>`.
  * @param {import("./github.js").GitHub} gh
  * @param {string} requestId
  * @param {{baseUrl: string}} where
@@ -151,7 +173,7 @@ export async function buildStatus(gh, requestId, { baseUrl }) {
   if (!run) return { status: 200, body: { request_id: requestId, status: "queued" } };
   const desc = describeRun(run);
   if (desc.status !== "ready") return { status: 200, body: { ...desc, request_id: requestId } };
-  const parsed = await loadArtifact(gh, desc.run_id);
+  const parsed = await loadArtifact(gh, desc.run_id, { name: nameOf(titleOf(run)), env: desc.env });
   return {
     status: 200,
     body: {

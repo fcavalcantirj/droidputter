@@ -1,5 +1,7 @@
-// GET /api/artifact/{run_id}/{file} -> the bytes of one part out of the run's *-m5cardputer artifact.
-// 400 unless file is one of the four .bin names, 404 when the run has no (unexpired) artifact.
+// GET /api/artifact/{run_id}/{file} -> the bytes of one part out of the run's <name>-<env> artifact (the same
+// selection as the status route -- lib/artifact.js selectArtifact -- with the env taken from the artifact's
+// own -m5cardputer / -m5cardputer-virtual suffix since the URL carries only the run; the -elf artifact is never
+// served). 400 unless file is one of the four .bin names, 404 when the run has no (unexpired) artifact.
 
 import { loadArtifact, sha256Hex } from "../../../lib/artifact.js";
 import { error, githubOf, octets, param, vercel } from "../../../lib/http.js";

@@ -29,8 +29,8 @@ class BuildProxyClient(private val baseUrl: String = BuildProxy.DEFAULT_BASE_URL
     private class Reply(val code: Int, val body: String)
 
     /** `POST /api/build`; 202 = started, 200 = the proxy already had it (`cached`). */
-    suspend fun requestBuild(slug: String, ref: String? = null, name: String? = null): BuildAccepted = withContext(Dispatchers.IO) {
-        val reply = exchange("POST", BuildProxy.buildUrl(baseUrl), BuildProxy.encodeRequest(BuildRequest(slug, ref, name)))
+    suspend fun requestBuild(slug: String, ref: String? = null, name: String? = null, env: String? = null): BuildAccepted = withContext(Dispatchers.IO) {
+        val reply = exchange("POST", BuildProxy.buildUrl(baseUrl), BuildProxy.encodeRequest(BuildRequest(slug, ref, name, env)))
         when (reply.code) {
             HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_ACCEPTED -> parse(reply) { BuildProxy.parseAccepted(it) }
             else -> throw failure(reply, "build request for $slug")

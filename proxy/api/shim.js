@@ -3,11 +3,13 @@
 // ---- OPERATOR NOTES (droidputter build proxy) --------------------------------------------------------
 //
 // What this is: a Vercel project (proxy/) of five Node 22 functions, zero framework, one dependency
-// (fflate). The phone POSTs /api/build {repo, ref?, name?}; the proxy dispatches
+// (fflate). The phone POSTs /api/build {repo, ref?, name?, env?}; the proxy dispatches
 // .github/workflows/build-app.yml on fcavalcantirj/droidputter@main (workflow_dispatch inputs repo, name,
-// ref, request_id, shim), polls the run by its run-name ("build <repo>@<ref|HEAD> shim=<shim> req=<id>")
-// and streams the parts (bootloader.bin 0x0, partitions.bin 0x8000, boot_app0.bin 0xe000,
-// firmware.bin 0x10000) straight out of the run's <name>-m5cardputer artifact zip. Nothing is pre-built
+// ref, env, request_id, shim), polls the run by its run-name ("build <repo>@<ref|HEAD> env=<env> shim=<shim>
+// req=<id>") and streams the parts (bootloader.bin 0x0, partitions.bin 0x8000, boot_app0.bin 0xe000,
+// firmware.bin 0x10000) straight out of the run's <name>-<env> artifact zip (never the <name>-<env>-elf one).
+// env = m5cardputer (Cardputer ADV, the default) or m5cardputer-virtual (bare ESP32-S3, the phone is the only
+// screen); it is part of the build's identity and echoed in every build response. Nothing is pre-built
 // or hosted; a run's artifact (7-day retention) is the only cache, plus module memory while warm.
 // The phone also POSTs /api/verdict (a Verdict record: works/broken for one firmware sha256); the proxy
 // files the "[verdict] ..." GitHub issue itself, with the `verdict` label, and verdicts.yml folds it into
@@ -42,6 +44,8 @@
 // Smoke test after deploy:
 //   curl -s $BASE/api/shim
 //   curl -s -X POST $BASE/api/build -H 'content-type: application/json' -d '{"repo":"wisnc/stellar-map"}'
+//   curl -s -X POST $BASE/api/build -H 'content-type: application/json' \
+//        -d '{"repo":"wisnc/stellar-map","env":"m5cardputer-virtual"}'   # bare ESP32-S3 build of the same app
 //   curl -s $BASE/api/build/<request_id>          # until status == ready (~2 min warm, ~4 min cold)
 //   curl -sI $BASE/api/artifact/<run_id>/firmware.bin
 //   curl -s -X POST $BASE/api/verdict -H 'content-type: application/json' -d '{"name":"stellar-map",
@@ -50,7 +54,7 @@
 //                                                 # once verdicts.yml has folded it; 502 = PAT lacks Issues
 //
 // Limits: at most 6 queued+running builds (429 + Retry-After: 60 otherwise); a successful run younger
-// than 24 h for the same repo@ref and shim_commit is reused (200 cached: true); an identical build
+// than 24 h for the same repo@ref, env and shim_commit is reused (200 cached: true); an identical build
 // already in flight is joined (202 with its request_id and run_id). GitHub REST budget per POST:
 // 1 commits (cached 60 s) + 1 runs list + 1 dispatch; per status poll: 1-2 runs lists (+ artifacts list
 // and one zip download the first time a run is ready on this instance). /api/verdict: 20 POSTs per

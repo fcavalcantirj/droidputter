@@ -125,6 +125,8 @@ class MainActivity : ComponentActivity() {
     private val myBuildsRepository: MyBuildsRepository by lazy { MyBuildsRepository(this) }
     private var buildsVersion: Int by mutableStateOf(0)   // bumped when a proxy build lands so the list re-reads
     private var buildState: BuildRequestState? by mutableStateOf(null)
+    /** Which board the next on-demand build is for: the bare ESP32-S3 (north star) or the Cardputer ADV (desk oracle). */
+    private var buildTarget: String by mutableStateOf(BuildProxy.ENV_VIRTUAL)
     private var catalogNavigateTo: CatalogEntry? by mutableStateOf(null)   // the detail the catalog should open next
     private val buildFlow: BuildFlow by lazy {
         BuildFlow(
@@ -222,6 +224,8 @@ class MainActivity : ComponentActivity() {
                             onOpenUrl = ::openUrl,
                             navigateTo = catalogNavigateTo,
                             onNavigated = { catalogNavigateTo = null },
+                            buildTarget = buildTarget,
+                            onBuildTarget = { buildTarget = it },
                         )
                     } else {
                         Column(Modifier.fillMaxSize()) {
@@ -579,6 +583,7 @@ class MainActivity : ComponentActivity() {
             displayName = shimSeed?.name ?: BuildProxy.defaultName(slug),
             license = seed?.license.orEmpty(),
             description = seed?.description?.removeSuffix(" ${BuildProxy.DESCRIPTION_SUFFIX}").orEmpty(),
+            env = buildTarget,
         )
     }
 

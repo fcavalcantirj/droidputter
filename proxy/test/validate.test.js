@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  BUILD_ENVS,
+  DEFAULT_ENV,
   ValidationError,
   defaultName,
   validateBuildRequest,
@@ -12,11 +14,11 @@ import {
 const bad = (fn) => assert.throws(fn, (e) => e instanceof ValidationError && e.status === 400);
 
 describe("validateBuildRequest", () => {
-  test("defaults: ref '' and name = repo name lowercased", () => {
-    assert.deepEqual(validateBuildRequest({ repo: "wisnc/Stellar-Map" }), { repo: "wisnc/Stellar-Map", ref: "", name: "stellar-map" });
+  test("defaults: ref '', name = repo name lowercased, env = m5cardputer", () => {
+    assert.deepEqual(validateBuildRequest({ repo: "wisnc/Stellar-Map" }), { repo: "wisnc/Stellar-Map", ref: "", name: "stellar-map", env: "m5cardputer" });
   });
   test("explicit ref and name pass through", () => {
-    assert.deepEqual(validateBuildRequest({ repo: "a/b", ref: "v1.2.3", name: "custom_name.v2" }), { repo: "a/b", ref: "v1.2.3", name: "custom_name.v2" });
+    assert.deepEqual(validateBuildRequest({ repo: "a/b", ref: "v1.2.3", name: "custom_name.v2" }), { repo: "a/b", ref: "v1.2.3", name: "custom_name.v2", env: "m5cardputer" });
     assert.equal(validateBuildRequest({ repo: "a/b", ref: "refs/heads/main" }).ref, "refs/heads/main");
     assert.equal(validateBuildRequest({ repo: "a/b", ref: "0123456789abcdef0123456789abcdef01234567" }).ref.length, 40);
   });
@@ -36,6 +38,17 @@ describe("validateBuildRequest", () => {
     bad(() => validateBuildRequest({ repo: "a/b", name: "with space" }));
     bad(() => validateBuildRequest({ repo: "a/b", name: "a".repeat(65) }));
     assert.equal(validateBuildRequest({ repo: "a/b", name: "" }).name, "b");
+  });
+  test("env: exactly m5cardputer or m5cardputer-virtual; missing, null or '' -> m5cardputer; anything else -> 400", () => {
+    assert.deepEqual(BUILD_ENVS, ["m5cardputer", "m5cardputer-virtual"]);
+    assert.equal(DEFAULT_ENV, "m5cardputer");
+    for (const env of [undefined, null, ""]) assert.equal(validateBuildRequest({ repo: "a/b", env }).env, "m5cardputer");
+    assert.equal(validateBuildRequest({ repo: "a/b", env: "m5cardputer" }).env, "m5cardputer");
+    assert.deepEqual(validateBuildRequest({ repo: "a/b", env: "m5cardputer-virtual" }), { repo: "a/b", ref: "", name: "b", env: "m5cardputer-virtual" });
+    for (const env of ["M5Cardputer", "virtual", "m5cardputer-virtual ", " m5cardputer", "m5cardputer\n", "m5cardputer-virtual-elf", "m5cardputer-bench-8192", 42, {}, []]) {
+      bad(() => validateBuildRequest({ repo: "a/b", env }));
+    }
+    assert.throws(() => validateBuildRequest({ repo: "a/b", env: "virtual" }), /env must be one of m5cardputer, m5cardputer-virtual/);
   });
   test("body must be an object", () => {
     bad(() => validateBuildRequest(undefined));

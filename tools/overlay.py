@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Overlay generator: turn an open-source Cardputer app repo into a droidputter build overlay.
 
-    python3 tools/overlay.py <github-url | owner/repo> [--name NAME] [--ref REF] [--env-src ENV] [--build] [--upload]
+    python3 tools/overlay.py <github-url | owner/repo> [--name NAME] [--ref REF] [--env-src ENV] [--env ENV] [--build] [--upload]
 
 Clones the repo (shallow; --ref = branch, tag or full commit sha) into apps/_src/<name>/ (git-ignored),
 reads its platformio.ini (or finds its .ino), and writes apps/<name>/platformio.ini on the
@@ -10,8 +10,10 @@ except the display/keyboard libraries, which the shim provides patched (M5GFX 0.
 in apps/<name>/lib via shim/apply.sh, M5Unified pinned to the version the shim is tested with) plus
 DroidputterShim. Every path in the generated ini is anchored on PlatformIO's ${PROJECT_DIR} (the overlay
 dir), so the same ini builds on any checkout -- a Mac or a GitHub runner -- without regeneration.
-Prints one JSON line per app so a batch run can be tabulated. --build runs `pio run -e m5cardputer`
-and reports RAM/flash or the first compiler errors; --upload flashes the board on /dev/cu.usbmodem*.
+Prints one JSON line per app so a batch run can be tabulated. --build runs `pio run -e <env>` (--env,
+default m5cardputer = Cardputer ADV with the real TFT teed; m5cardputer-virtual = bare ESP32-S3, the phone
+is the only screen) and reports RAM/flash or the first compiler errors; --upload flashes the board on
+/dev/cu.usbmodem*.
 """
 import argparse
 import configparser
@@ -291,11 +293,12 @@ def generate(slug: str, name: str, env_src: str | None, ref: str | None) -> dict
     return info
 
 
-def build(app: Path, upload: bool) -> dict:
-    cmd = [str(PIO), "run", "-e", "m5cardputer"] + (["-t", "upload"] if upload else [])
+def build(app: Path, upload: bool, env: str = "m5cardputer") -> dict:
+    """`pio run -e <env>` in the overlay dir; the parts land in apps/<name>/.pio/build/<env> (reported as build_dir)."""
+    cmd = [str(PIO), "run", "-e", env] + (["-t", "upload"] if upload else [])
     r = subprocess.run(cmd, cwd=app, capture_output=True, text=True)
     out = r.stdout + r.stderr
-    res = {"ok": r.returncode == 0}
+    res = {"ok": r.returncode == 0, "env": env, "build_dir": str((app / ".pio" / "build" / env).relative_to(REPO_ROOT))}
     m = re.search(r"RAM:.*?([\d.]+)%.*?used (\d+)", out, re.S)
     f = re.search(r"Flash:.*?([\d.]+)%.*?used (\d+)", out, re.S)
     if m:
@@ -318,6 +321,8 @@ def main() -> int:
     ap.add_argument("--name", help="overlay name (default: repo name, lowercased)")
     ap.add_argument("--env-src", help="upstream env to take lib_deps/build_flags from")
     ap.add_argument("--ref", help="git branch/tag to clone")
+    ap.add_argument("--env", default="m5cardputer",
+                    help="PlatformIO env to build: m5cardputer (Cardputer ADV, real TFT) or m5cardputer-virtual (bare ESP32-S3, phone-only)")
     ap.add_argument("--build", action="store_true")
     ap.add_argument("--upload", action="store_true")
     a = ap.parse_args()
@@ -325,7 +330,7 @@ def main() -> int:
     name = a.name or slug.split("/")[1].lower()
     info = generate(slug, name, a.env_src, a.ref)
     if a.build or a.upload:
-        info.update(build(REPO_ROOT / info["app"], a.upload))
+        info.update(build(REPO_ROOT / info["app"], a.upload, a.env))
         # Arduino-IDE repos straddle the NimBLE 1.x -> 2.x API break: try the other major once.
         if not info["ok"] and info.get("inferred_deps") and any("NimBLE" in e for e in info.get("error", [])):
             alt = "h2zero/NimBLE-Arduino@^2.3.7" if any(d.startswith("h2zero/NimBLE-Arduino@^1") for d in info["inferred_deps"]) else "h2zero/NimBLE-Arduino@^1.4.3"
@@ -334,7 +339,7 @@ def main() -> int:
             for d in (REPO_ROOT / info["app"] / ".pio" / "libdeps").glob("*/NimBLE-Arduino*"):
                 subprocess.run(["rm", "-rf", str(d)])
             info["nimble_retry"] = alt
-            info.update(build(REPO_ROOT / info["app"], a.upload))
+            info.update(build(REPO_ROOT / info["app"], a.upload, a.env))
     print(json.dumps(info))
     return 0 if info.get("ok", True) else 1
 

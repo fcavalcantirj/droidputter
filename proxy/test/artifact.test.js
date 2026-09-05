@@ -2,12 +2,48 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
 import { strFromU8 } from "fflate";
 import { handle } from "../api/artifact/[run]/[file].js";
-import { ArtifactError, PART_FILES, _resetArtifactCache, parseArtifactZip, parseSha256Sums, partsOf } from "../lib/artifact.js";
+import { ArtifactError, BUILD_ENVS, PART_FILES, _resetArtifactCache, artifactLabel, parseArtifactZip, parseSha256Sums, partsOf, selectArtifact } from "../lib/artifact.js";
 import { DEFAULT_PARTS, TOKEN, ctxWith, fakeGitHub, makeArtifact, makeZip, parse, req, sha256 } from "./helpers.js";
 
 const get = (fake, run, file, extra = {}) => handle(req({ path: `/api/artifact/${run}/${file}`, params: { run, file }, ...extra }), ctxWith(fake));
+const VIRTUAL = "m5cardputer-virtual";
+const named = (...names) => names.map((name, i) => makeArtifact(i + 1, { name }));
 
 beforeEach(() => _resetArtifactCache());
+
+describe("artifact selection (<name>-<env>, never -elf)", () => {
+  test("with name and env: the exact <name>-<env> only", () => {
+    const list = named("logs", "stellar-map-m5cardputer-elf", "stellar-map-m5cardputer-virtual", "stellar-map-m5cardputer", "my-stellar-map-m5cardputer");
+    assert.equal(selectArtifact(list, { name: "stellar-map", env: "m5cardputer" }).name, "stellar-map-m5cardputer");
+    assert.equal(selectArtifact(list, { name: "stellar-map", env: VIRTUAL }).name, "stellar-map-m5cardputer-virtual");
+    assert.equal(selectArtifact(list, { name: "pense-bem", env: "m5cardputer" }), undefined);
+    assert.equal(selectArtifact(named("pense-bem-m5cardputer-elf"), { name: "pense-bem", env: "m5cardputer" }), undefined);
+  });
+
+  test("with env only: the artifact ending in -<env> that does not end in -elf; the two envs never cross", () => {
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer-elf", "stellar-map-m5cardputer"), { env: "m5cardputer" }).name, "stellar-map-m5cardputer");
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer-virtual-elf", "stellar-map-m5cardputer-virtual"), { env: VIRTUAL }).name, "stellar-map-m5cardputer-virtual");
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer-virtual", "stellar-map-m5cardputer-virtual-elf"), { env: "m5cardputer" }), undefined);
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer", "stellar-map-m5cardputer-elf"), { env: VIRTUAL }), undefined);
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer-elf"), { env: "m5cardputer" }), undefined);
+  });
+
+  test("with nothing known (the artifact route): any env of BUILD_ENVS, still never -elf, name-less entries ignored", () => {
+    assert.deepEqual(BUILD_ENVS, ["m5cardputer", VIRTUAL]);
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer-virtual-elf", "stellar-map-m5cardputer-virtual")).name, "stellar-map-m5cardputer-virtual");
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer-elf", "stellar-map-m5cardputer"), {}).name, "stellar-map-m5cardputer");
+    assert.equal(selectArtifact(named("stellar-map-m5cardputer-elf", "stellar-map-m5cardputer-virtual-elf", "logs")), undefined);
+    assert.equal(selectArtifact([{ id: 1 }, { id: 2, name: 7 }]), undefined);
+    assert.equal(selectArtifact([]), undefined);
+  });
+
+  test("artifactLabel names what was looked for", () => {
+    assert.equal(artifactLabel({ name: "pense-bem", env: VIRTUAL }), "pense-bem-m5cardputer-virtual");
+    assert.equal(artifactLabel({ env: "m5cardputer" }), "*-m5cardputer");
+    assert.equal(artifactLabel({ name: null, env: null }), "*-{m5cardputer|m5cardputer-virtual}");
+    assert.equal(artifactLabel(), "*-{m5cardputer|m5cardputer-virtual}");
+  });
+});
 
 describe("artifact parsing", () => {
   test("SHA256SUMS: text and binary-mode lines, junk ignored", () => {
@@ -56,8 +92,8 @@ describe("GET /api/artifact/{run}/{file}", () => {
     assert.equal(Buffer.compare(Buffer.from(res.body), Buffer.from(DEFAULT_PARTS["firmware.bin"])), 0);
   });
 
-  test("finds the *-m5cardputer artifact among others; follows the 302 without the token", async () => {
-    const fake = fakeGitHub({ artifacts: { 101: [makeArtifact(1, { name: "logs" }), makeArtifact(2, { name: "pense-bem-m5cardputer" })] }, zips: { 2: makeZip() } });
+  test("finds the <name>-m5cardputer artifact among others, skipping its -elf sibling; follows the 302 without the token", async () => {
+    const fake = fakeGitHub({ artifacts: { 101: [makeArtifact(1, { name: "logs" }), makeArtifact(3, { name: "pense-bem-m5cardputer-elf" }), makeArtifact(2, { name: "pense-bem-m5cardputer" })] }, zips: { 2: makeZip() } });
     const res = await get(fake, "101", "bootloader.bin");
     assert.equal(res.status, 200);
     assert.equal(fake.blobHits.length, 1);
@@ -65,6 +101,17 @@ describe("GET /api/artifact/{run}/{file}", () => {
     assert.equal(fake.blobHits[0].hasAuth, false);
     const zipCall = fake.calls.find((c) => c.url.endsWith("/actions/artifacts/2/zip"));
     assert.equal(zipCall.headers.authorization, `Bearer ${TOKEN}`);
+  });
+
+  test("serves a virtual run's parts out of <name>-m5cardputer-virtual (the URL carries only the run), never the -elf one", async () => {
+    const fake = fakeGitHub({ artifacts: { 107: [makeArtifact(11, { name: "stellar-map-m5cardputer-virtual-elf" }), makeArtifact(12, { name: "stellar-map-m5cardputer-virtual" })] }, zips: { 12: makeZip() } });
+    const res = await get(fake, "107", "firmware.bin");
+    assert.equal(res.status, 200);
+    assert.equal(res.headers["Content-Length"], String(DEFAULT_PARTS["firmware.bin"].byteLength));
+    assert.deepEqual(fake.blobHits.map((h) => h.url), ["https://blob.test/zip/12"]);
+    const elfOnly = fakeGitHub({ artifacts: { 108: [makeArtifact(13, { name: "stellar-map-m5cardputer-elf" }), makeArtifact(14, { name: "stellar-map-m5cardputer-virtual-elf" })] } });
+    await assert.rejects(get(elfOnly, "108", "firmware.bin"), (e) => e.status === 404 && /run 108 has no \*-\{m5cardputer\|m5cardputer-virtual\} artifact/.test(e.message));
+    assert.equal(elfOnly.blobHits.length, 0);
   });
 
   test("four parts of one run -> one zip download", async () => {
@@ -76,7 +123,7 @@ describe("GET /api/artifact/{run}/{file}", () => {
   test("expired artifact -> 404; run without artifacts -> 404", async () => {
     const fake = fakeGitHub({ artifacts: { 103: [makeArtifact(4, { expired: true })], 104: [] } });
     await assert.rejects(get(fake, "103", "firmware.bin"), (e) => e.status === 404 && /expired/.test(e.message));
-    await assert.rejects(get(fake, "104", "firmware.bin"), (e) => e.status === 404 && /no -m5cardputer artifact/.test(e.message));
+    await assert.rejects(get(fake, "104", "firmware.bin"), (e) => e.status === 404 && /run 104 has no \*-\{m5cardputer\|m5cardputer-virtual\} artifact \(expired or never uploaded\)/.test(e.message));
     await assert.rejects(get(fake, "105", "firmware.bin"), (e) => e.status === 404);
   });
 

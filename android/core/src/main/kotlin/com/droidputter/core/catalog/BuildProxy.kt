@@ -14,9 +14,9 @@ import kotlinx.serialization.json.JsonElement
  * HTTP itself lives in :app (BuildProxyClient).
  */
 
-/** Body of `POST /api/build`. Nulls are omitted on the wire. */
+/** Body of `POST /api/build`. Nulls are omitted on the wire; [env] null = the proxy's default (the ADV env). */
 @Serializable
-data class BuildRequest(val repo: String, val ref: String? = null, val name: String? = null)
+data class BuildRequest(val repo: String, val ref: String? = null, val name: String? = null, val env: String? = null)
 
 /** Answer to `POST /api/build`: 202 = a run was started, 200 + `cached` = the proxy already has this build. */
 @Serializable
@@ -28,6 +28,8 @@ data class BuildAccepted(
     @SerialName("shim_commit") val shimCommit: String? = null,
     val cached: Boolean = false,
     @SerialName("run_id") val runId: String? = null,
+    /** The PlatformIO env the proxy is building (contract v1.1); absent from a v1 proxy = the ADV env. */
+    val env: String? = null,
 )
 
 /** The `build` block of a ready status: what was compiled and how big it came out. */
@@ -64,6 +66,8 @@ data class BuildStatus(
     /** Not in the v1 GET shape (the POST carries it); tolerated here so a later proxy can add it. */
     @SerialName("shim_commit") val shimCommit: String? = null,
     val error: String? = null,
+    /** The PlatformIO env of this build (contract v1.1); absent from a v1 proxy = the ADV env. */
+    val env: String? = null,
 ) {
     /** A build the phone can flash: status ready AND at least one part to download. */
     val ready: Boolean get() = status == STATUS_READY && parts.isNotEmpty()
@@ -103,8 +107,11 @@ data class VerdictReceipt(@SerialName("issue_number") val issueNumber: Long, @Se
 object BuildProxy {
     /** Placeholder until the proxy is deployed; the only place the base url lives. */
     const val DEFAULT_BASE_URL = "https://droidputter-proxy.vercel.app"
-    /** What every proxy build is: a Cardputer shim build for the StampS3, like the apps/catalog.json recipes. */
+    /** The ADV env: the shim tees the real TFT to the phone, like the apps/catalog.json recipes. */
     const val ENV = "m5cardputer"
+    /** The bare-ESP32-S3 env (north star): -DDROIDPUTTER_VIRTUAL=1, the shim's no-bus panel, the phone IS the screen. */
+    const val ENV_VIRTUAL = "m5cardputer-virtual"
+    val ENVS: List<String> = listOf(ENV, ENV_VIRTUAL)
     const val BOARD = "m5stack-stamps3"
     const val POLL_INTERVAL_MS = 5_000L
     const val DESCRIPTION_SUFFIX = "(shim build via proxy)"
@@ -188,10 +195,11 @@ object BuildProxy {
         license: String,
         description: String,
         shimCommit: String? = status.shimCommit,
+        env: String = status.env ?: ENV,
     ): CatalogEntry = CatalogEntry(
         name = displayName,
         board = BOARD,
-        env = ENV,
+        env = env,
         description = listOf(description.trim(), DESCRIPTION_SUFFIX).filter { it.isNotEmpty() }.joinToString(" "),
         sourceRepo = "https://github.com/$repoSlug",
         license = license,
@@ -202,6 +210,13 @@ object BuildProxy {
         sourceRef = "repo=$repoSlug commit=${status.build?.upstreamCommit.orEmpty()}",
         mirror = true,
     )
+
+    /** What a build env means for the user: which board it runs on and where its screen is. */
+    fun targetLabel(env: String): String = when (env) {
+        ENV_VIRTUAL -> "bare ESP32-S3 (phone is the screen)"
+        ENV -> "Cardputer ADV (its TFT + phone)"
+        else -> env
+    }
 
     /** The one-line status the UI shows while a request is polled; [elapsedMillis] since the phone asked. */
     fun statusLine(status: BuildStatus, elapsedMillis: Long): String = when {

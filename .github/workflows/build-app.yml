@@ -1,8 +1,10 @@
 # On-demand shim build of any catalog repo ("recompile on the fly", spike S3): rebuilds a Cardputer app
 # from its upstream GitHub source against the droidputter shim (tools/overlay.py + shim/apply.sh) on a
-# GitHub runner -- no Mac involved -- and uploads the flashable parts as ONE artifact.
+# GitHub runner -- no Mac involved -- and uploads the flashable parts as ONE artifact. The `env` input picks
+# the PlatformIO env of the generated overlay: m5cardputer (Cardputer ADV, the real TFT teed) or
+# m5cardputer-virtual (a bare ESP32-S3, the phone is the only screen); one run builds one env.
 #
-#   gh workflow run build-app.yml -f repo=wisnc/stellar-map -f name=stellar-map [-f ref=<branch|tag|sha>]
+#   gh workflow run build-app.yml -f repo=wisnc/stellar-map -f name=stellar-map [-f ref=<branch|tag|sha>] [-f env=m5cardputer-virtual]
 #
 # Publishing the parts to a release / the catalog is a LATER step: it needs the founder's decision on
 # tags and releases (rolling tag vs orphan branch vs LauncherHub upload) -- this workflow never tags.
@@ -24,6 +26,11 @@ on:
         required: false
         default: ""
         type: string
+      env:
+        description: "PlatformIO env of the overlay: m5cardputer (Cardputer ADV) or m5cardputer-virtual (bare ESP32-S3, phone-only)"
+        required: false
+        default: "m5cardputer"
+        type: string
       request_id:
         description: "opaque id set by the build proxy so it can find this run again (shows in the run name)"
         required: false
@@ -36,13 +43,13 @@ on:
         type: string
 
 # The proxy (proxy/, deployed on Vercel) correlates its request with this run by the run name.
-run-name: "build ${{ inputs.repo }}@${{ inputs.ref || 'HEAD' }} shim=${{ inputs.shim || '?' }} req=${{ inputs.request_id || '-' }}"
+run-name: "build ${{ inputs.repo }}@${{ inputs.ref || 'HEAD' }} env=${{ inputs.env }} shim=${{ inputs.shim || '?' }} req=${{ inputs.request_id || '-' }}"
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-app-${{ inputs.name }}-${{ inputs.request_id || 'manual' }}
+  group: build-app-${{ inputs.name }}-${{ inputs.env }}-${{ inputs.request_id || 'manual' }}
   cancel-in-progress: false
 
 env:
@@ -57,12 +64,14 @@ jobs:
       REPO: ${{ inputs.repo }}
       NAME: ${{ inputs.name }}
       REF: ${{ inputs.ref }}
+      ENV: ${{ inputs.env }}
     steps:
       - name: Validate inputs
         run: |
           [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "bad repo: $REPO"; exit 1; }
           [[ "$NAME" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "bad name: $NAME"; exit 1; }
           [[ -z "$REF" || "$REF" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "bad ref: $REF"; exit 1; }
+          [[ "$ENV" == "m5cardputer" || "$ENV" == "m5cardputer-virtual" ]] || { echo "bad env: $ENV (m5cardputer | m5cardputer-virtual)"; exit 1; }
 
       - uses: actions/checkout@v4
 
@@ -86,34 +95,36 @@ jobs:
       - name: Overlay + build (tools/overlay.py --build)
         run: |
           set -o pipefail
-          args=("$REPO" --name "$NAME" --build)
+          args=("$REPO" --name "$NAME" --env "$ENV" --build)
           [ -n "$REF" ] && args+=(--ref "$REF")
           python3 tools/overlay.py "${args[@]}" | tee overlay.out
 
       - name: Collect artifact
         run: |
-          B="apps/$NAME/.pio/build/m5cardputer"
+          B="apps/$NAME/.pio/build/$ENV"
           mkdir -p dist
           cp "$B/bootloader.bin" "$B/partitions.bin" "$B/firmware.bin" dist/
           cp "$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin" dist/
           tail -n 1 overlay.out > dist/build.json
           (cd dist && sha256sum bootloader.bin partitions.bin boot_app0.bin firmware.bin | tee SHA256SUMS && ls -l)
 
+      # Named <name>-<env> (the ADV artifact keeps its old <name>-m5cardputer name); the proxy selects it by
+      # that exact name and never touches the -elf one below.
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.name }}-m5cardputer
+          name: ${{ inputs.name }}-${{ inputs.env }}
           path: dist/
           if-no-files-found: error
           # The artifact is a build CACHE the proxy streams from, not a distribution channel: a week is plenty.
           retention-days: 7
 
-      # The linked ELF (20-40 MB) rides in its OWN artifact: the proxy picks the run's artifact by the -m5cardputer
-      # suffix and unzips it whole in memory, so the flashable zip stays small; the ELF is for the Mac's
-      # xtensa-esp32s3-elf-addr2line when the phone's PanicSniffer reports a Backtrace (Pigtail IWDT triage).
+      # The linked ELF (20-40 MB) rides in its OWN artifact (<name>-<env>-elf): the proxy picks the run's
+      # <name>-<env> artifact and unzips it whole in memory, so the flashable zip stays small; the ELF is for the
+      # Mac's xtensa-esp32s3-elf-addr2line when the phone's PanicSniffer reports a Backtrace (Pigtail IWDT triage).
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.name }}-elf
-          path: apps/${{ inputs.name }}/.pio/build/m5cardputer/firmware.elf
+          name: ${{ inputs.name }}-${{ inputs.env }}-elf
+          path: apps/${{ inputs.name }}/.pio/build/${{ inputs.env }}/firmware.elf
           if-no-files-found: warn
           retention-days: 7
 

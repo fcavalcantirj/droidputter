@@ -65,6 +65,9 @@ fun CatalogScreen(
     onOpenUrl: (String) -> Unit = {},
     navigateTo: CatalogEntry? = null,
     onNavigated: () -> Unit = {},
+    /** The PlatformIO env the next build is for (BuildProxy.ENV / ENV_VIRTUAL); one choice for both entry points. */
+    buildTarget: String = BuildProxy.ENV,
+    onBuildTarget: (String) -> Unit = {},
 ) {
     var selected: CatalogEntry? by remember { mutableStateOf(null) }
     var tab by remember { mutableIntStateOf(0) }
@@ -110,7 +113,7 @@ fun CatalogScreen(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                if (tab == 0) item { BuildAnyRepoRow(state = buildState, onBuild = { slug -> onBuild(slug, null) }, onOpenUrl = onOpenUrl) }
+                if (tab == 0) item { BuildAnyRepoRow(state = buildState, onBuild = { slug -> onBuild(slug, null) }, onOpenUrl = onOpenUrl, target = buildTarget, onTarget = onBuildTarget) }
                 if (shown.isEmpty()) {
                     item {
                         Text(
@@ -147,6 +150,8 @@ fun CatalogScreen(
                 promptVerdict = promptVerdictFor?.let { it.name == current.name && it.env == current.env } ?: false,
                 buildSlug = BuildProxy.slugOf(current),
                 buildState = buildState,
+                buildTarget = buildTarget,
+                onBuildTarget = onBuildTarget,
                 onBuild = { slug -> onBuild(slug, current) },
                 onOpenUrl = onOpenUrl,
             )
@@ -198,6 +203,8 @@ private fun CatalogDetail(
     buildState: BuildRequestState? = null,
     onBuild: (slug: String) -> Unit = {},
     onOpenUrl: (String) -> Unit = {},
+    buildTarget: String = BuildProxy.ENV,
+    onBuildTarget: (String) -> Unit = {},
 ) {
     // Scrollable: in landscape the parts list pushes the buttons below the fold, where
     // neither the D-pad nor a swipe could reach them (2026-09-03 14:11 on the Poco).
@@ -293,6 +300,8 @@ private fun CatalogDetail(
                 isRebuild = entry.source == CatalogEntry.SOURCE_PROXY,
                 onBuild = { onBuild(buildSlug) },
                 onOpenUrl = onOpenUrl,
+                target = buildTarget,
+                onTarget = onBuildTarget,
             )
         }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {

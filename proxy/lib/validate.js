@@ -1,7 +1,8 @@
 // Input validation for the v1 API contract. Every failure is a ValidationError (HTTP 400).
 
-import { PART_FILES } from "./artifact.js";
+import { BUILD_ENVS, DEFAULT_ENV, PART_FILES } from "./artifact.js";
 
+export { BUILD_ENVS, DEFAULT_ENV };
 export const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 export const REF_RE = /^[A-Za-z0-9_./-]{0,100}$/;
 export const NAME_RE = /^[a-z0-9_.-]{1,64}$/;
@@ -32,14 +33,17 @@ export function defaultName(repo) {
 }
 
 /**
+ * `env` picks the PlatformIO env of the overlay: m5cardputer (Cardputer ADV, the default) or m5cardputer-virtual
+ * (bare ESP32-S3, the phone is the only screen). Like `name`, a missing, null or empty env takes the default;
+ * anything else must be exactly one of the two names.
  * @param {unknown} body parsed JSON body of POST /api/build
- * @returns {{repo: string, ref: string, name: string}}
+ * @returns {{repo: string, ref: string, name: string, env: string}}
  */
 export function validateBuildRequest(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new ValidationError("body must be a JSON object {repo, ref?, name?}");
+    throw new ValidationError("body must be a JSON object {repo, ref?, name?, env?}");
   }
-  const { repo, ref = "", name } = /** @type {Record<string, unknown>} */ (body);
+  const { repo, ref = "", name, env } = /** @type {Record<string, unknown>} */ (body);
   if (typeof repo !== "string" || !REPO_RE.test(repo)) {
     throw new ValidationError("repo must match owner/name ([A-Za-z0-9_.-])");
   }
@@ -50,7 +54,11 @@ export function validateBuildRequest(body) {
   if (typeof finalName !== "string" || !NAME_RE.test(finalName)) {
     throw new ValidationError("name must match ^[a-z0-9_.-]{1,64}$");
   }
-  return { repo, ref, name: finalName };
+  const finalEnv = env === undefined || env === null || env === "" ? DEFAULT_ENV : env;
+  if (typeof finalEnv !== "string" || !BUILD_ENVS.includes(finalEnv)) {
+    throw new ValidationError(`env must be one of ${BUILD_ENVS.join(", ")}`);
+  }
+  return { repo, ref, name: finalName, env: finalEnv };
 }
 
 /** @param {unknown} id */

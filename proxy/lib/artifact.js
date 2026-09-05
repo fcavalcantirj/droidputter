@@ -1,6 +1,8 @@
-// The build artifact: ONE zip named <name>-m5cardputer holding bootloader.bin, partitions.bin,
-// boot_app0.bin, firmware.bin, build.json (one JSON line from tools/overlay.py) and SHA256SUMS
-// (sha256sum format). Downloaded once per run, unzipped in memory with fflate, kept in module memory.
+// The build artifact: ONE zip named <name>-<env> (env = m5cardputer for the Cardputer ADV, m5cardputer-virtual
+// for a bare ESP32-S3 with the phone as its only screen) holding bootloader.bin, partitions.bin, boot_app0.bin,
+// firmware.bin, build.json (one JSON line from tools/overlay.py) and SHA256SUMS (sha256sum format). The run's
+// other artifact, <name>-<env>-elf, is the linked ELF and is never selected here. Downloaded once per run,
+// unzipped in memory with fflate, kept in module memory.
 
 import { createHash } from "node:crypto";
 import { strFromU8, unzipSync } from "fflate";
@@ -13,7 +15,10 @@ export const PART_OFFSETS = Object.freeze({
   "firmware.bin": 0x10000,
 });
 export const PART_FILES = Object.freeze(Object.keys(PART_OFFSETS));
-export const ARTIFACT_SUFFIX = "-m5cardputer";
+/** The two PlatformIO envs every overlay carries (tools/overlay.py ENV_TEMPLATE); build-app.yml refuses any other. */
+export const BUILD_ENVS = Object.freeze(["m5cardputer", "m5cardputer-virtual"]);
+export const DEFAULT_ENV = BUILD_ENVS[0];
+const ELF_SUFFIX = "-elf";
 const CACHE_MAX = 8;
 
 export class ArtifactError extends Error {
@@ -123,7 +128,35 @@ export function buildSummary(parsed) {
   };
 }
 
-/** @type {Map<string, ParsedArtifact>} keyed by `${repo}#${runId}`; best effort, survives while the instance is warm */
+/**
+ * @typedef {object} ArtifactSelector
+ * @property {string | null} [name] overlay name (build-app.yml input `name`) when known
+ * @property {string | null} [env] PlatformIO env (one of BUILD_ENVS) when known
+ */
+
+/**
+ * The flashable artifact of a run. With the name: the EXACT `<name>-<env>`. Without it (the run name carries
+ * repo, ref, env, shim and request id, not the overlay name): the artifact whose name ends with `-<env>` and
+ * not with `-elf`; without the env either (GET /api/artifact/{run}/{file} knows only the run): `-<env>` for any
+ * env of BUILD_ENVS. One run builds one env, so the fallback is unambiguous. Never the `-elf` artifact.
+ * @param {any[]} artifacts the run's artifacts as GitHub lists them
+ * @param {ArtifactSelector} [sel]
+ * @returns {any | undefined}
+ */
+export function selectArtifact(artifacts, { name, env } = {}) {
+  const envs = env ? [env] : BUILD_ENVS;
+  const named = (a) => typeof a.name === "string" && !a.name.endsWith(ELF_SUFFIX);
+  if (name) return artifacts.find((a) => named(a) && envs.some((e) => a.name === `${name}-${e}`));
+  return artifacts.find((a) => named(a) && envs.some((e) => a.name.endsWith(`-${e}`)));
+}
+
+/** What selectArtifact looked for, for error messages: `<name>-<env>`, `*-<env>` or `*-{m5cardputer|m5cardputer-virtual}`. */
+export function artifactLabel({ name, env } = {}) {
+  const e = env || `{${BUILD_ENVS.join("|")}}`;
+  return `${name || "*"}-${e}`;
+}
+
+/** @type {Map<string, ParsedArtifact>} keyed by `${repo}#${runId}` (one run = one env = one flashable artifact); best effort, survives while the instance is warm */
 const cache = new Map();
 
 export function _resetArtifactCache() {
@@ -131,19 +164,20 @@ export function _resetArtifactCache() {
 }
 
 /**
- * Find + download + unzip the run's `*-m5cardputer` artifact (cached per run).
+ * Find + download + unzip the run's `<name>-<env>` artifact (cached per run; see selectArtifact).
  * @param {import("./github.js").GitHub} gh
  * @param {string} runId
+ * @param {ArtifactSelector} [sel] name/env when the caller knows them (the status route parses env from the run name)
  * @returns {Promise<ParsedArtifact>}
  */
-export async function loadArtifact(gh, runId) {
+export async function loadArtifact(gh, runId, sel = {}) {
   const key = `${gh.repo}#${runId}`;
   const hit = cache.get(key);
   if (hit) return hit;
 
   const artifacts = await gh.listArtifacts(runId);
-  const match = artifacts.find((a) => typeof a.name === "string" && a.name.endsWith(ARTIFACT_SUFFIX));
-  if (!match) throw new ArtifactError(`run ${runId} has no ${ARTIFACT_SUFFIX} artifact (expired or never uploaded)`, 404);
+  const match = selectArtifact(artifacts, sel);
+  if (!match) throw new ArtifactError(`run ${runId} has no ${artifactLabel(sel)} artifact (expired or never uploaded)`, 404);
   if (match.expired) throw new ArtifactError(`artifact of run ${runId} expired (${match.expires_at || "retention 7 days"})`, 404);
 
   const parsed = parseArtifactZip(await gh.downloadArtifactZip(match.id));

@@ -289,4 +289,16 @@ class BuildProxyTest {
         assertEquals(listOf(entry, other), parseCatalog(json))
         assertEquals("[]", encodeCatalog(emptyList()).trim())
     }
+
+    @Test
+    fun `env rides the request and the ready build, absent means the ADV env`() {
+        assertEquals("""{"repo":"wisnc/stellar-map","env":"m5cardputer-virtual"}""", BuildProxy.encodeRequest(BuildRequest("wisnc/stellar-map", env = BuildProxy.ENV_VIRTUAL)))
+        val virtual = BuildProxy.parseStatus("""{"request_id":"r","status":"ready","env":"m5cardputer-virtual","parts":[{"file":"firmware.bin","offset":"0x10000","size":1,"sha256":"aa","url":"u"}]}""")
+        assertEquals(BuildProxy.ENV_VIRTUAL, BuildProxy.toCatalogEntry(virtual, "wisnc/stellar-map", "stellar-map", "", "").env)
+        val v1 = BuildProxy.parseStatus("""{"request_id":"r","status":"ready","parts":[{"file":"firmware.bin","offset":"0x10000","size":1,"sha256":"aa","url":"u"}]}""")
+        assertEquals(BuildProxy.ENV, BuildProxy.toCatalogEntry(v1, "o/n", "n", "", "").env)
+        assertEquals(BuildProxy.ENV_VIRTUAL, BuildProxy.toCatalogEntry(v1, "o/n", "n", "", "", env = BuildProxy.ENV_VIRTUAL).env)
+        assertEquals(BuildProxy.ENV_VIRTUAL, BuildProxy.parseAccepted("""{"request_id":"r","env":"m5cardputer-virtual"}""").env)
+        assertEquals("bare ESP32-S3 (phone is the screen)", BuildProxy.targetLabel(BuildProxy.ENV_VIRTUAL))
+    }
 }

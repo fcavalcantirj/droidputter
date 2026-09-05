@@ -19,6 +19,8 @@ data class BuildRequestState(
     val slug: String,
     val displayName: String,
     val startedAtMillis: Long,
+    /** The PlatformIO env asked for: BuildProxy.ENV (Cardputer ADV) or ENV_VIRTUAL (bare ESP32-S3). */
+    val env: String = BuildProxy.ENV,
     val message: String,
     val requestId: String? = null,
     val status: BuildStatus? = null,
@@ -52,14 +54,14 @@ class BuildFlow(
     val inFlight: Boolean get() = job?.isActive == true
 
     /** Starts a request for [slug]; ignored while another one is in flight. */
-    fun start(slug: String, displayName: String, license: String, description: String, ref: String? = null) {
+    fun start(slug: String, displayName: String, license: String, description: String, ref: String? = null, env: String = BuildProxy.ENV) {
         if (inFlight) return
         val t0 = System.currentTimeMillis()
-        publish(BuildRequestState(slug, displayName, t0, message = "asking the build proxy…"))
+        publish(BuildRequestState(slug, displayName, t0, env = env, message = "asking the build proxy…"))
         job = scope.launch {
             try {
-                val accepted = client.requestBuild(slug, ref, displayName)
-                Log.d(TAG, "build $slug accepted: request ${accepted.requestId} cached=${accepted.cached} run=${accepted.runId}")
+                val accepted = client.requestBuild(slug, ref, displayName, env = env)
+                Log.d(TAG, "build $slug env=$env accepted: request ${accepted.requestId} cached=${accepted.cached} run=${accepted.runId} env=${accepted.env}")
                 update { copy(requestId = accepted.requestId, message = if (accepted.cached) "the proxy already has this build, fetching its parts" else "queued") }
                 var consecutiveFailures = 0
                 while (true) {
@@ -74,7 +76,8 @@ class BuildFlow(
                     }
                     val elapsed = System.currentTimeMillis() - t0
                     if (status.ready) {
-                        val entry = BuildProxy.toCatalogEntry(status, slug, displayName, license, description, shimCommit = status.shimCommit ?: accepted.shimCommit)
+                        // The env of record: the proxy's answer when it names one (v1.1), else what was asked for.
+                        val entry = BuildProxy.toCatalogEntry(status, slug, displayName, license, description, shimCommit = status.shimCommit ?: accepted.shimCommit, env = status.env ?: accepted.env ?: env)
                         myBuilds.add(entry)
                         update { copy(status = status, runUrl = status.runUrl, done = true, readyEntry = entry, message = "Ready: flash it from the Droidputter builds tab") }
                         onReady(entry)

@@ -36,10 +36,13 @@ fun BuildRequestPanel(
     isRebuild: Boolean,
     onBuild: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    target: String = BuildProxy.ENV,
+    onTarget: (String) -> Unit = {},
 ) {
     val busyElsewhere = state?.inFlight == true && state.slug != slug
     val mine = state?.takeIf { it.slug == slug }
     Column {
+        TargetSelector(target, onTarget, enabled = state?.inFlight != true)
         Button(onClick = onBuild, enabled = state?.inFlight != true, modifier = Modifier.fillMaxWidth()) {
             Text(
                 when {
@@ -50,8 +53,8 @@ fun BuildRequestPanel(
             )
         }
         Text(
-            "The build proxy checks out $slug, rebuilds it against the Droidputter shim on GitHub Actions and " +
-                "hands the parts back; flash them from the Droidputter builds tab.",
+            "The build proxy checks out $slug, rebuilds it against the Droidputter shim on GitHub Actions for " +
+                "${BuildProxy.targetLabel(target)} and hands the parts back; flash them from the Droidputter builds tab.",
             style = MaterialTheme.typography.bodySmall,
         )
         if (busyElsewhere) Text("Another build (${state!!.displayName}) is in flight; one at a time.", style = MaterialTheme.typography.bodySmall)
@@ -65,10 +68,13 @@ fun BuildAnyRepoRow(
     state: BuildRequestState?,
     onBuild: (slug: String) -> Unit,
     onOpenUrl: (String) -> Unit,
+    target: String = BuildProxy.ENV,
+    onTarget: (String) -> Unit = {},
 ) {
     var text by remember { mutableStateOf("") }
     val slug = BuildProxy.repoSlug(text)
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        TargetSelector(target, onTarget, enabled = state?.inFlight != true)
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = text,
@@ -95,6 +101,26 @@ fun BuildAnyRepoRow(
     }
 }
 
+/**
+ * Which board the build is for (the north star, Felipe 2026-09-05: "a Cardputer app on Android with an ESP32
+ * plugged in over OTG, not another Cardputer"). Two full-width buttons, filled = selected, like the catalog's
+ * source selector (a tab strip was too hard to hit). The choice is one state for both build entry points.
+ */
+@Composable
+fun TargetSelector(target: String, onTarget: (String) -> Unit, enabled: Boolean = true) {
+    Column {
+        Text("Build for", style = MaterialTheme.typography.labelMedium)
+        Row(modifier = Modifier.fillMaxWidth()) {
+            for ((env, label) in listOf(BuildProxy.ENV_VIRTUAL to "bare ESP32-S3", BuildProxy.ENV to "Cardputer ADV")) {
+                val m = Modifier.weight(1f).padding(end = if (env == BuildProxy.ENV_VIRTUAL) 8.dp else 0.dp)
+                if (env == target) Button(onClick = {}, enabled = enabled, modifier = m) { Text(label) }
+                else OutlinedButton(onClick = { onTarget(env) }, enabled = enabled, modifier = m) { Text(label) }
+            }
+        }
+        Text(BuildProxy.targetLabel(target), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 /** One live line for a request: the status text with a ticking elapsed time, and the run link when there is one. */
 @Composable
 private fun BuildStatusLine(state: BuildRequestState, onOpenUrl: (String) -> Unit) {
@@ -110,7 +136,7 @@ private fun BuildStatusLine(state: BuildRequestState, onOpenUrl: (String) -> Uni
     // One compact row: status text, and the run link as a small text button beside it (no second row).
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "${state.displayName}: $line",
+            "${state.displayName}${if (state.env != BuildProxy.ENV) " [${state.env}]" else ""}: $line",
             style = MaterialTheme.typography.bodySmall,
             color = if (state.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
