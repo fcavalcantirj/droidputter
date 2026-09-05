@@ -42,5 +42,16 @@
     "note": "Pense-Bem on the Poco 2026-09-03 13:42: coherent mirror, 402 RectRle, Felipe drove the game from the soft keys",
     "date": "2026-09-04",
     "reporter": "fcavalcantirj"
+  },
+  {
+    "name": "m5cardputer_audiospectrum",
+    "env": "m5cardputer",
+    "firmware_sha256": "30bbb2b73d9c332da29d2689ee19c57c0f95710f148c1dc8b45c628f129b7a9d",
+    "shim_commit": "8f4a7be",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "",
+    "date": "2026-09-05",
+    "reporter": "device-85ab6cb7"
   }
 ]
