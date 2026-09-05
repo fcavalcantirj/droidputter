@@ -76,10 +76,14 @@ class PhoneFlasher(
             var flasher = EspFlasher(UsbRomLink(romPort.port), onProgress = progress)
             val syncedOnSamePort = runCatching { flasher.sync(attempts = 5) }.isSuccess
             if (!syncedOnSamePort) {
-                status("waiting for the bootloader to re-enumerate")
+                // Two cases land here: the chip re-enumerated (a few seconds), or the running firmware's USB is a
+                // software CDC (UiFlow2 / MicroPython / TinyUSB) that never forwards DTR/RTS to the reset logic, so
+                // nothing happened at all (StickS3 #2, 2026-09-05). Only a human can fix the second: hold BOOT and
+                // replug -- the ROM then enumerates as USB-Serial/JTAG and the raw session's attach hands it over.
+                status("no ROM bootloader yet -- if the board stays quiet, hold its BOOT button and replug it now (waiting ${REENUMERATE_WAIT_MS / 1000} s)")
                 runCatching { romPort.port.close() }
-                romPort = withTimeoutOrNull(10_000) { reattached.receive() }
-                    ?: return@withContext Result.failure(EspFlashException("ROM bootloader did not come back on USB"))
+                romPort = withTimeoutOrNull(REENUMERATE_WAIT_MS) { reattached.receive() }
+                    ?: return@withContext Result.failure(EspFlashException("ROM bootloader did not come back on USB (hold BOOT while plugging the board in, then Flash again)"))
                 current = romPort
                 flasher = EspFlasher(UsbRomLink(romPort.port), onProgress = progress)
                 flasher.sync()
@@ -124,5 +128,7 @@ class PhoneFlasher(
 
     private companion object {
         const val TAG = "Droidputter"
+        /** Long enough for a human to hold BOOT and replug; a real re-enumeration takes a few seconds. */
+        const val REENUMERATE_WAIT_MS = 90_000L
     }
 }
