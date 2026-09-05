@@ -83,43 +83,45 @@ fun CatalogScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Text("Catalog", style = MaterialTheme.typography.headlineSmall)
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
         if (current == null) {
+            // Landscape phones have ~360 dp of height: only the tabs, the search field and Back are fixed
+            // chrome; the caption, the build-any-repo row and the build status scroll WITH the list. Before
+            // (2026-09-04 22:25, Felipe's screenshot) six stacked rows left no room for the list or Back.
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Droidputter builds (${myBuilds.size + entries.size})") })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("LauncherHub (${hubEntries.size})") })
             }
-            Text(
-                if (tab == 0) "Rebuilt against the shim: the phone is the screen, keyboard and GPS. Bins download at flash time. " +
-                    "Your own proxy builds list first; any GitHub repo can be built on demand below."
-                else (hubStatus ?: "LauncherHub feed") + ". Prebuilt, flash only: the app runs on the Cardputer's own screen.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(vertical = 4.dp),
-            )
-            if (tab == 0) BuildAnyRepoRow(state = buildState, onBuild = { slug -> onBuild(slug, null) }, onOpenUrl = onOpenUrl)
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Search name, author, repo") },
+                label = { Text(if (tab == 0) "Search builds and recipes" else "Search LauncherHub (name, author, repo)") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             )
             val source = if (tab == 0) myBuilds + entries else hubEntries
             val shown = if (query.isBlank()) source else source.filter { it.matches(query) }
-            if (shown.isEmpty()) {
-                Text(
-                    when {
-                        source.isEmpty() && tab == 0 -> "(no entries in apps/catalog.json)"
-                        source.isEmpty() -> "(LauncherHub feed not loaded yet: open the Catalog once with network)"
-                        else -> "(nothing matches \"$query\")"
-                    },
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
-            } else {
-                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f).padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                item {
+                    Text(
+                        if (tab == 0) "Shim builds: the phone is the screen, keyboard and GPS. Your on-demand builds list first."
+                        else (hubStatus ?: "LauncherHub feed") + ". Prebuilt, flash only: runs on the Cardputer's own screen.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (tab == 0) item { BuildAnyRepoRow(state = buildState, onBuild = { slug -> onBuild(slug, null) }, onOpenUrl = onOpenUrl) }
+                if (shown.isEmpty()) {
+                    item {
+                        Text(
+                            when {
+                                source.isEmpty() && tab == 0 -> "(no entries in apps/catalog.json)"
+                                source.isEmpty() -> "(LauncherHub feed not loaded yet: open the Catalog once with network)"
+                                else -> "(nothing matches \"$query\")"
+                            },
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                } else {
                     itemsIndexed(shown) { _, entry ->
                         OutlinedButton(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
                             Text(rowText(entry, summaryOf(entry)))
@@ -127,7 +129,7 @@ fun CatalogScreen(
                     }
                 }
             }
-            OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                 Text("Back")
             }
         } else {

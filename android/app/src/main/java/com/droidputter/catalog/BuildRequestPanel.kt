@@ -8,6 +8,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,15 +76,11 @@ fun BuildAnyRepoRow(
                 label = { Text("Build any GitHub repo: owner/repo or URL") },
                 singleLine = true,
                 isError = text.isNotBlank() && slug == null,
-                supportingText = {
-                    Text(
-                        when {
-                            text.isBlank() -> "e.g. geo-tp/Ultimate-Remote -- a shim build of any open-source Cardputer app"
-                            slug == null -> "not a GitHub repo"
-                            else -> "will build $slug as \"${BuildProxy.defaultName(slug)}\""
-                        },
-                    )
-                },
+                // Supporting text only when there is something to say: a blank field needs no hint row
+                // (landscape height is scarce; the label already says what goes in).
+                supportingText = if (text.isBlank()) null else ({
+                    Text(if (slug == null) "not a GitHub repo" else "will build $slug as \"${BuildProxy.defaultName(slug)}\"")
+                }),
                 modifier = Modifier.weight(1f),
             )
             Button(
@@ -110,12 +107,16 @@ private fun BuildStatusLine(state: BuildRequestState, onOpenUrl: (String) -> Uni
     }
     val status = state.status
     val line = if (status != null && state.inFlight) BuildProxy.statusLine(status, now - state.startedAtMillis) else state.message
-    Text(
-        "${state.displayName} (${state.slug}): $line",
-        style = MaterialTheme.typography.bodyMedium,
-        color = if (state.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-    )
-    state.runUrl?.let { url ->
-        OutlinedButton(onClick = { onOpenUrl(url) }) { Text(if (state.failed) "Open the failed run" else "Open the GitHub run") }
+    // One compact row: status text, and the run link as a small text button beside it (no second row).
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "${state.displayName}: $line",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (state.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        state.runUrl?.let { url ->
+            TextButton(onClick = { onOpenUrl(url) }) { Text(if (state.failed) "failed run" else "run") }
+        }
     }
 }

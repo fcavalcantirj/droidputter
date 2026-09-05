@@ -87,7 +87,7 @@ class BuildProxyClient(private val baseUrl: String = BuildProxy.DEFAULT_BASE_URL
         } catch (e: UnknownHostException) {
             throw ProxyException("offline: cannot resolve $host (no network?)", cause = e)
         } catch (e: SocketTimeoutException) {
-            throw ProxyException("the build proxy at $host did not answer within ${TIMEOUT_MS / 1000} s", cause = e)
+            throw ProxyException("the build proxy at $host did not answer within ${READ_TIMEOUT_MS / 1000} s", cause = e)
         } catch (e: ConnectException) {
             throw ProxyException("cannot reach the build proxy at $host (${e.message ?: "connection refused"})", cause = e)
         } catch (e: ProxyException) {
