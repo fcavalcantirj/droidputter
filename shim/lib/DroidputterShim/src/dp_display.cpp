@@ -62,6 +62,7 @@ static bool flushDirty(bool force) {
 // alone runs at full speed with zero overhead -- only window()'s lazy begin() call runs regardless.
 void window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye) {
   if (!internal::started) begin(nullptr, internal::scr_w, internal::scr_h, internal::scr_rot);
+  internal::pollIfDue();   // apps without M5Cardputer.update() service the link by drawing
   if (!internal::linked) return;
   ensureShadow();
   flushDirty(false);
@@ -76,6 +77,7 @@ void repeat(uint32_t raw, uint32_t npixels) {
   ensureShadow(); dp_shadow_repeat((uint8_t)(raw & 0xFF), (uint8_t)((raw >> 8) & 0xFF), npixels);
 }
 void fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t raw) {
+  internal::pollIfDue();
   if (!internal::linked) return;
   ensureShadow(); flushDirty(false);
   dp_shadow_fill(x, y, w, h, (uint8_t)(raw & 0xFF), (uint8_t)((raw >> 8) & 0xFF));

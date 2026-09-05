@@ -25,6 +25,9 @@ extern uint32_t write_budget_ms;  // usb_write()'s blocking budget; raised only 
 void resync();
 // Periodic flush of the coalesced shadow (dp_display.cpp); called from dp::poll() every loop.
 void flushTick();
+// Runs dp::poll() from the tee entry points at most every DP_POLL_MS, re-entrancy safe (see droidputter.cpp):
+// apps that never call M5Cardputer.update() still get HELLO_ACK, keys and flushes as long as they draw.
+void pollIfDue();
 
 uint8_t crc8(uint8_t c, const uint8_t* p, size_t n);
 void put16(uint8_t* p, uint16_t v);

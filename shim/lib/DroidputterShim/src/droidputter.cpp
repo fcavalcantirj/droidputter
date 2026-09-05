@@ -164,6 +164,26 @@ static void txWatchdog(uint32_t now) {
     esp_restart();
   }
 }
+namespace internal {
+// The link must be serviced even by apps that never call M5Cardputer.update() (the only stock caller of
+// dp::poll): geo-tp's I2C Scanner and GPS Logger draw with M5.Lcd and nothing else, so on 2026-09-04 the phone
+// saw the boot HELLO, its HELLO_ACK was never read, `linked` stayed false and not one frame went out. Every tee
+// entry point (dp_display.cpp) calls this: at most once per DP_POLL_MS, never re-entrant (poll -> resync ->
+// readRect -> window() would recurse), so an app that draws keeps the link alive by drawing.
+#ifndef DP_POLL_MS
+#define DP_POLL_MS 16
+#endif
+void pollIfDue() {
+  static uint32_t last = 0; static bool inside = false;
+  if (inside) return;
+  uint32_t now = millis();
+  if (now - last < DP_POLL_MS) return;
+  last = now; inside = true;
+  dp::poll();
+  inside = false;
+}
+}  // namespace internal
+
 void poll() {
   if (!internal::started) return;
   // Link-down releases every held key so a phone that disconnects mid-keypress

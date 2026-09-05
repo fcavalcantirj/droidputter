@@ -17,7 +17,7 @@ void repeat(uint32_t rawcolor, uint32_t npixels);
 void fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rawcolor);
 void pixel(uint16_t x, uint16_t y, uint32_t rawcolor);
 void pixelsConv(lgfx::v1::pixelcopy_t* param, uint32_t npixels);    // convert path
-void poll();                                                        // parse phone->ESP frames (keys, GPS_NMEA); apps with no M5Cardputer Keyboard_Class (e.g. gps-demo) must call this themselves
+void poll();                                                        // parse phone->ESP frames (keys, GPS_NMEA); also run from the draw path every 16 ms, so apps that never call M5Cardputer.update() still link (2026-09-04)
 // injected keys (row,col) currently held; returns count, fills out[max]
 uint8_t injectedKeys(uint8_t* rows, uint8_t* cols, uint8_t max);
 // link triage counters (TX watchdog): kicks, CDC re-inits, ms since the last frame left the chip, ms since the last inbound frame
