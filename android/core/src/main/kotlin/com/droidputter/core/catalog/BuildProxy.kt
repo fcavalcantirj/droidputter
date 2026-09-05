@@ -93,6 +93,13 @@ data class ShimInfo(
 @Serializable
 data class ProxyError(val error: String? = null, @SerialName("retry_after_s") val retryAfterS: Int? = null)
 
+/**
+ * Answer to `POST /api/verdict` (201): the GitHub issue the proxy filed with its own identity for the
+ * [Verdict] the phone posted (the body is `Verdict.toJson`); the repo's Action folds it into verdicts.json.
+ */
+@Serializable
+data class VerdictReceipt(@SerialName("issue_number") val issueNumber: Long, @SerialName("issue_url") val issueUrl: String = "")
+
 object BuildProxy {
     /** Placeholder until the proxy is deployed; the only place the base url lives. */
     const val DEFAULT_BASE_URL = "https://droidputter-proxy.vercel.app"
@@ -108,13 +115,16 @@ object BuildProxy {
     fun buildUrl(baseUrl: String): String = "${baseUrl.trimEnd('/')}/api/build"
     fun statusUrl(baseUrl: String, requestId: String): String = "${buildUrl(baseUrl)}/$requestId"
     fun shimUrl(baseUrl: String): String = "${baseUrl.trimEnd('/')}/api/shim"
+    /** `POST /api/verdict`: 201 [VerdictReceipt] | 400 | 413 | 429 (+retry_after_s) | 502, error bodies as [ProxyError]. */
+    fun verdictUrl(baseUrl: String): String = "${baseUrl.trimEnd('/')}/api/verdict"
 
     fun encodeRequest(request: BuildRequest): String = json.encodeToString(BuildRequest.serializer(), request)
 
-    /** These three throw on a body that is not the documented shape: the caller turns that into "proxy answered garbage". */
+    /** These four throw on a body that is not the documented shape: the caller turns that into "proxy answered garbage". */
     fun parseAccepted(text: String): BuildAccepted = json.decodeFromString(BuildAccepted.serializer(), text)
     fun parseStatus(text: String): BuildStatus = json.decodeFromString(BuildStatus.serializer(), text)
     fun parseShim(text: String): ShimInfo = json.decodeFromString(ShimInfo.serializer(), text)
+    fun parseReceipt(text: String): VerdictReceipt = json.decodeFromString(VerdictReceipt.serializer(), text)
 
     /** Never throws: an error body that is not JSON becomes its own (truncated) text. */
     fun parseError(text: String?): ProxyError {

@@ -255,9 +255,13 @@ private fun CatalogDetail(
                 Text(if (flashing) "Flashing..." else "Flash from phone")
             }
             if (flashStatus != null) Text(flashStatus, style = MaterialTheme.typography.bodySmall)
-            // Community verdict for THIS firmware hash: stored on the phone, then opened as a prefilled
-            // GitHub issue so the repo's verdicts.json can carry it to every other user.
-            Text(if (promptVerdict) "Did it run? Tell everyone:" else "Report for this exact build:", style = MaterialTheme.typography.titleMedium)
+            // Community verdict for THIS firmware hash: stored on the phone, then posted to the build proxy,
+            // which files the GitHub issue itself so the repo's verdicts.json can carry it to every other
+            // user. One tap, no browser, no account; the flashStatus line above reports saved / sent (#N).
+            Text(
+                if (promptVerdict) "Did it run? Tell everyone (one tap, no account):" else "Report for this exact build (one tap, no account):",
+                style = MaterialTheme.typography.titleMedium,
+            )
             Row(modifier = Modifier.fillMaxWidth()) {
                 Button(onClick = { onVerdict(true) }, modifier = Modifier.weight(1f)) { Text("Works") }
                 OutlinedButton(onClick = { onVerdict(false) }, modifier = Modifier.weight(1f).padding(start = 8.dp)) { Text("Broken") }

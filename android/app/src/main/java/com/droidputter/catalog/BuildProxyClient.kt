@@ -5,6 +5,8 @@ import com.droidputter.core.catalog.BuildProxy
 import com.droidputter.core.catalog.BuildRequest
 import com.droidputter.core.catalog.BuildStatus
 import com.droidputter.core.catalog.ShimInfo
+import com.droidputter.core.catalog.Verdict
+import com.droidputter.core.catalog.VerdictReceipt
 import java.io.IOException
 import java.net.ConnectException
 import java.net.HttpURLConnection
@@ -49,6 +51,33 @@ class BuildProxyClient(private val baseUrl: String = BuildProxy.DEFAULT_BASE_URL
     suspend fun shim(): ShimInfo = withContext(Dispatchers.IO) {
         val reply = exchange("GET", BuildProxy.shimUrl(baseUrl))
         if (reply.code == HttpURLConnection.HTTP_OK) parse(reply) { BuildProxy.parseShim(it) } else throw failure(reply, "shim info")
+    }
+
+    /**
+     * `POST /api/verdict` with the verdict as its body: the proxy files the GitHub issue with its own
+     * identity and answers 201 with the issue it made (200 tolerated for a proxy that dedupes). Failures
+     * carry a SHORT message: they land on the catalog's status line next to "kept on this phone".
+     */
+    suspend fun submitVerdict(v: Verdict): VerdictReceipt = withContext(Dispatchers.IO) {
+        val reply = exchange("POST", BuildProxy.verdictUrl(baseUrl), Verdict.toJson(v))
+        when (reply.code) {
+            HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_OK -> parse(reply) { BuildProxy.parseReceipt(it) }
+            else -> throw verdictFailure(reply)
+        }
+    }
+
+    private fun verdictFailure(reply: Reply): ProxyException {
+        val err = BuildProxy.parseError(reply.body)
+        val detail = err.error?.takeIf { it.isNotBlank() }?.let { ": ${it.take(80)}" }.orEmpty()
+        return when (reply.code) {
+            429 -> {
+                val retry = err.retryAfterS ?: DEFAULT_RETRY_S
+                ProxyException("proxy busy, retry in $retry s", 429, retry)
+            }
+            HttpURLConnection.HTTP_ENTITY_TOO_LARGE -> ProxyException("verdict too large for the proxy (HTTP 413)", reply.code)
+            in 400..499 -> ProxyException("proxy rejected it (HTTP ${reply.code}$detail)", reply.code)
+            else -> ProxyException("proxy failed (HTTP ${reply.code}$detail)", reply.code)
+        }
     }
 
     private inline fun <T> parse(reply: Reply, decode: (String) -> T): T =

@@ -250,6 +250,24 @@ class BuildProxyTest {
     }
 
     @Test
+    fun `verdictUrl and parseReceipt follow the POST api-verdict contract`() {
+        assertEquals("https://droidputter-proxy.vercel.app/api/verdict", BuildProxy.verdictUrl(BuildProxy.DEFAULT_BASE_URL))
+        assertEquals("http://192.168.0.150:8787/api/verdict", BuildProxy.verdictUrl("http://192.168.0.150:8787/"))
+        val receipt = BuildProxy.parseReceipt("""{"issue_number":42,"issue_url":"https://github.com/fcavalcantirj/droidputter/issues/42","future":1}""")
+        assertEquals(VerdictReceipt(42, "https://github.com/fcavalcantirj/droidputter/issues/42"), receipt)
+        assertEquals(42L, receipt.issueNumber)
+        // a numeric-as-string issue number still decodes (lenient), a missing url is tolerated, garbage throws
+        assertEquals(7L, BuildProxy.parseReceipt("""{"issue_number":"7"}""").issueNumber)
+        assertEquals("", BuildProxy.parseReceipt("""{"issue_number":7}""").issueUrl)
+        assertThrows(SerializationException::class.java) { BuildProxy.parseReceipt("""{"issue_url":"x"}""") }
+        assertThrows(Exception::class.java) { BuildProxy.parseReceipt("<html>502</html>") }
+        // the error side of the same contract: 429 carries retry_after_s, a 413 typically has no JSON body at all
+        assertEquals(ProxyError("too many verdicts", 30), BuildProxy.parseError("""{"error":"too many verdicts","retry_after_s":30}"""))
+        assertEquals(ProxyError(), BuildProxy.parseError(""))
+        assertEquals(ProxyError(error = "Request Entity Too Large"), BuildProxy.parseError("Request Entity Too Large"))
+    }
+
+    @Test
     fun `formatElapsed is m,ss below an hour and h,mm,ss above`() {
         assertEquals("0:00", BuildProxy.formatElapsed(0))
         assertEquals("0:00", BuildProxy.formatElapsed(-1_000))

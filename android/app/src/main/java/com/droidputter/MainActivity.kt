@@ -111,7 +111,10 @@ class MainActivity : ComponentActivity() {
     private val catalogRepository: CatalogRepository by lazy { CatalogRepository(this) }
     private var flashStatus: String? by mutableStateOf(null)
     private var flashing: Boolean by mutableStateOf(false)
-    private val verdictRepository: VerdictRepository by lazy { VerdictRepository(this) }
+    // Debug builds can point at a LAN proxy (-PproxyBaseUrl); otherwise the deployed one. One client for
+    // the on-demand builds and the verdict submit.
+    private val proxyClient: BuildProxyClient by lazy { BuildProxyClient(BuildConfig.PROXY_BASE_URL.ifEmpty { BuildProxy.DEFAULT_BASE_URL }) }
+    private val verdictRepository: VerdictRepository by lazy { VerdictRepository(this, proxyClient) }
     private var verdictVersion: Int by mutableStateOf(0)   // bumped to recompose badges after a refresh/report
     private var catalogVersion: Int by mutableStateOf(0)   // bumped after a live catalog.json refresh so the list re-reads
     // Second source: prebuilt bins from the LauncherHub / M5Burner feed (flash only, no phone mirror).
@@ -126,8 +129,7 @@ class MainActivity : ComponentActivity() {
     private val buildFlow: BuildFlow by lazy {
         BuildFlow(
             scope = lifecycleScope,
-            // debug builds can point at a LAN proxy (-PproxyBaseUrl); otherwise the deployed one
-            client = BuildProxyClient(BuildConfig.PROXY_BASE_URL.ifEmpty { com.droidputter.core.catalog.BuildProxy.DEFAULT_BASE_URL }),
+            client = proxyClient,
             myBuilds = myBuildsRepository,
             onState = { s -> buildState = s },
             onReady = { entry -> buildsVersion++; catalogNavigateTo = entry },
@@ -444,7 +446,7 @@ class MainActivity : ComponentActivity() {
      * automatic"): for 20 s after the hard reset, count the shim's boot reports, whether a HELLO
      * arrived and whether draw frames flowed. One boot + HELLO + frames = works; three or more boots
      * (a reboot loop like Pigtail's IWDT) or no HELLO = broken; anything else stays a question for the
-     * user. Stored locally at once; the GitHub submission still needs the user (the browser).
+     * user. A decided verdict is stored and sent to the proxy at once (submitVerdict): the system handles it.
      */
     private fun observeAfterFlash(entry: CatalogEntry) {
         obsResets = 0; obsPanics = 0; lastPanicLine = null
@@ -488,26 +490,42 @@ class MainActivity : ComponentActivity() {
         return "$n prebuilt Cardputer/StampS3 apps from LauncherHub (M5Burner feed), fetched $age"
     }
 
+    /** The link evidence decided: the automatic verdict goes out exactly like a tapped one. */
     private fun autoVerdict(entry: CatalogEntry, works: Boolean, note: String) {
-        verdictRepository.addLocal(makeVerdict(entry, works, note))
-        verdictVersion++
         promptVerdictFor = null
-        flashStatus = "auto-verdict: ${if (works) "works" else "broken"} ($note). Tap Works/Broken to send it to GitHub."
+        submitVerdict(makeVerdict(entry, works, note), label = "auto-verdict ${if (works) "works" else "broken"} ($note)")
     }
 
     private fun makeVerdict(entry: CatalogEntry, works: Boolean, note: String = "") = Verdict(
         name = entry.name, env = entry.env, firmwareSha256 = entry.firmwareSha256.ifEmpty { flashedSha256[entry.assetDirName] ?: "" }, shimCommit = entry.shimCommit,
         board = boardName, result = if (works) Verdict.RESULT_WORKS else Verdict.RESULT_BROKEN, note = note,
         date = java.time.LocalDate.now().toString(),
+        reporter = verdictRepository.reporter,   // anonymous per-device id: which phone said so, never who
     )
 
-    /** Store this device's verdict for the entry's exact firmware and open the prefilled GitHub issue. */
+    /** Works / Broken tapped: this device's verdict for the entry's exact firmware. */
     private fun reportVerdict(entry: CatalogEntry, works: Boolean) {
-        val v = makeVerdict(entry, works)
+        promptVerdictFor = null
+        submitVerdict(makeVerdict(entry, works))
+    }
+
+    /**
+     * Felipe, 2026-09-04: "the button should be JUST CLICK, system handles". Store the verdict on this phone
+     * (badges update at once), then hand it to the build proxy, which files the GitHub issue with its own
+     * identity -- no browser, no account, nothing to type. A send that fails stays local and the next tap
+     * resends; a report this device already filed is not filed twice. [label] leads every status line.
+     */
+    private fun submitVerdict(v: Verdict, label: String = "verdict") {
+        // Every tap is stored (the badge follows the latest opinion, as before); only the send is deduped.
         verdictRepository.addLocal(v)
         verdictVersion++
-        promptVerdictFor = null
-        runCatching { startActivity(verdictRepository.issueIntent(v)) }.onFailure { Log.w(TAG, "issue intent failed: ${it.message}") }
+        verdictRepository.sentReceipt(v)?.let { flashStatus = "$label already sent (#${it.issueNumber})"; return }
+        flashStatus = "$label saved; sending…"
+        lifecycleScope.launch {
+            verdictRepository.submit(v)
+                .onSuccess { flashStatus = "$label sent (#${it.issueNumber}) — thank you" }
+                .onFailure { flashStatus = "$label not sent: ${it.message} -- tap Works/Broken to resend" }
+        }
     }
 
     /**

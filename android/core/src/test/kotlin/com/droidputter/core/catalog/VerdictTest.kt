@@ -64,6 +64,43 @@ class VerdictTest {
     }
 
     @Test
+    fun submissionKeyIgnoresNoteDateAndReporter() {
+        val a = v("stellar-map", "aa", Verdict.RESULT_WORKS, date = "2026-09-03", note = "first tap")
+        val b = v("stellar-map", "aa", Verdict.RESULT_WORKS, date = "2026-09-04", note = "auto: linked").copy(reporter = "device-0badf00d")
+        assertEquals("stellar-map|m5cardputer|aa|works", a.submissionKey)
+        assertEquals(a.submissionKey, b.submissionKey)
+        // a different outcome, firmware or env is a different report
+        assertTrue(a.submissionKey != v("stellar-map", "aa", Verdict.RESULT_BROKEN).submissionKey)
+        assertTrue(a.submissionKey != v("stellar-map", "bb", Verdict.RESULT_WORKS).submissionKey)
+        assertTrue(a.submissionKey != a.copy(env = "m5cardputer-adv").submissionKey)
+    }
+
+    @Test
+    fun reporterIdIsDevicePlusEightHex() {
+        val id = Verdict.newReporterId(kotlin.random.Random(7))
+        assertTrue(Regex("device-[0-9a-f]{8}").matches(id), id)
+        assertEquals(id, Verdict.newReporterId(kotlin.random.Random(7)))            // same seed, same id
+        assertTrue(id != Verdict.newReporterId(kotlin.random.Random(8)))            // different phones differ
+        assertTrue(Regex("device-[0-9a-f]{8}").matches(Verdict.newReporterId()))
+        assertTrue(Verdict.toJson(v("x", "aa", Verdict.RESULT_WORKS).copy(reporter = id)).contains("\"reporter\": \"$id\""))
+    }
+
+    @Test
+    fun sentVerdictsRoundTripAndTolerantParse() {
+        val a = v("stellar-map", "aa", Verdict.RESULT_WORKS)
+        val sent = mapOf(a.submissionKey to VerdictReceipt(42, "https://github.com/fcavalcantirj/droidputter/issues/42"))
+        val text = SentVerdicts.toJson(sent)
+        assertTrue(text.contains("\"stellar-map|m5cardputer|aa|works\""))
+        assertTrue(text.contains("\"issue_number\": 42"))
+        assertEquals(sent, SentVerdicts.parse(text))
+        assertEquals(emptyMap<String, VerdictReceipt>(), SentVerdicts.parse(""))
+        assertEquals(emptyMap<String, VerdictReceipt>(), SentVerdicts.parse("not json"))
+        assertEquals(emptyMap<String, VerdictReceipt>(), SentVerdicts.parse("{}"))
+        // unknown keys inside a receipt are tolerated, a missing url is not fatal
+        assertEquals(mapOf("k" to VerdictReceipt(7, "")), SentVerdicts.parse("""{"k":{"issue_number":7,"future":true}}"""))
+    }
+
+    @Test
     fun firmwareShaComesFromTheFirmwarePart() {
         assertEquals("aa", entry("x", "aa").firmwareSha256)
         assertEquals("", CatalogEntry(name = "x", board = "b", env = "e", description = "", sourceRepo = "", license = "").firmwareSha256)
