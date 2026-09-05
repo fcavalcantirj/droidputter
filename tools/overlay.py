@@ -123,9 +123,15 @@ build_flags =
 monitor_speed = 115200
 upload_speed = 460800
 
-; Same app, TFT dark, the phone is the only screen (Panel_Droidputter, dp_panel.h).
+; Same app, TFT dark, the phone is the only screen (Panel_Droidputter, dp_panel.h) -- the bare-ESP32-S3 target.
+; A bare S3 module is usually an R8 (octal PSRAM: the S3-PICO-1 in the StickS3, the WROOM-1-N16R8 devkit); the
+; ESP-IDF startup probes PSRAM with the core's memory type BEFORE any console exists, and a QSPI-typed firmware
+; on an octal module hangs right there (2026-09-05: StickS3 #2 showed the ROM banner, then silence). qio_opi +
+; PSRAM on is the env proven on the StickS3 on 2026-09-03; a module without PSRAM logs "not found" and runs on.
 [env:m5cardputer-virtual]
 extends = env:m5cardputer
+board_build.psram = true
+board_build.arduino.memory_type = qio_opi
 build_flags = ${{env:m5cardputer.build_flags}} -DDROIDPUTTER_VIRTUAL=1
 """
 

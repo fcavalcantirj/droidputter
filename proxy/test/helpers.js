@@ -92,7 +92,9 @@ export function makeArtifact(id, { name = "stellar-map-m5cardputer", expired = f
  * @param {{shimSha?: string, runs?: any[], runsPage2?: any[], artifacts?: Record<string, any[]>, zips?: Record<string, Uint8Array>, failCommits?: boolean, issueStatuses?: number[]}} [o]
  *   issueStatuses: what successive POST /issues answer (201 once the list is used up)
  */
-export function fakeGitHub({ shimSha = SHIM_SHA, runs = [], runsPage2 = [], artifacts = {}, zips = {}, failCommits = false, issueStatuses = [] } = {}) {
+export const SHIM_DATE = "2026-09-04T20:00:00Z";
+
+export function fakeGitHub({ shimSha = SHIM_SHA, runs = [], runsPage2 = [], artifacts = {}, zips = {}, failCommits = false, issueStatuses = [], overlayCommit = null } = {}) {
   /** @type {{method: string, url: string, headers: Record<string, string>, body?: string}[]} */
   const calls = [];
   /** @type {any[]} */
@@ -128,7 +130,13 @@ export function fakeGitHub({ shimSha = SHIM_SHA, runs = [], runsPage2 = [], arti
     const base = `/repos/${REPO}`;
     if (p === `${base}/commits`) {
       if (failCommits) return jsonRes(500, { message: "boom" });
-      return jsonRes(200, [{ sha: shimSha }]);
+      // overlayCommit: what path=tools/overlay.py answers ({sha, date}); the shim path answers shimSha at SHIM_DATE.
+      const path = u.searchParams.get("path");
+      if (path === "tools/overlay.py") {
+        if (!overlayCommit) return jsonRes(200, []);
+        return jsonRes(200, [{ sha: overlayCommit.sha, commit: { committer: { date: overlayCommit.date } } }]);
+      }
+      return jsonRes(200, [{ sha: shimSha, commit: { committer: { date: SHIM_DATE } } }]);
     }
     if (p === `${base}/actions/workflows/build-app.yml/runs`) {
       const page = Number(u.searchParams.get("page") || "1");

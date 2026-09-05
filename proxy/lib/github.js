@@ -4,6 +4,9 @@
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "droidputter-proxy";
 
+/** Paths on main whose newest commit is the build's "shim" identity (run-name shim=, cache key). */
+export const SHIM_PATHS = Object.freeze(["shim", "tools/overlay.py"]);
+
 export class GitHubError extends Error {
   /**
    * @param {string} message
@@ -77,12 +80,23 @@ export function createGitHub({ token, repo, workflow, apiBase = "https://api.git
     repo,
     workflow,
 
-    /** Short sha of the newest commit on main that touched shim/. */
+    /**
+     * Short sha of the newest commit on main that shaped the build: the shim (shim/) or the overlay generator
+     * (tools/overlay.py, whose env template sets memory type, flags and libs -- 2026-09-05: the virtual env's
+     * PSRAM type changed there and a shim-only identity would have served the stale build as cached).
+     */
     async latestShimCommit() {
-      const commits = await api(`${base}/commits?path=shim&sha=main&per_page=1`);
-      const sha = Array.isArray(commits) && commits[0] && commits[0].sha;
-      if (typeof sha !== "string" || sha.length < 7) throw new GitHubError("no commit touching shim/ on main", 502, `${base}/commits`);
-      return sha.slice(0, 7);
+      let best = null;
+      for (const path of SHIM_PATHS) {
+        const commits = await api(`${base}/commits?path=${encodeURIComponent(path)}&sha=main&per_page=1`);
+        const c = Array.isArray(commits) && commits[0];
+        const sha = c && c.sha;
+        if (typeof sha !== "string" || sha.length < 7) continue;
+        const date = Date.parse((c.commit && c.commit.committer && c.commit.committer.date) || "") || 0;
+        if (!best || date > best.date) best = { sha, date };
+      }
+      if (!best) throw new GitHubError(`no commit touching ${SHIM_PATHS.join(" or ")} on main`, 502, `${base}/commits`);
+      return best.sha.slice(0, 7);
     },
 
     /**
