@@ -63,8 +63,10 @@ class BuildProxyClient(private val baseUrl: String = BuildProxy.DEFAULT_BASE_URL
         try {
             val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = method
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
+                connectTimeout = CONNECT_TIMEOUT_MS
+                // A fresh POST makes the proxy do several GitHub calls after a possible cold start: the Poco's
+                // first build request timed out at 15 s on 2026-09-04 while the same POST took 2 s from a Mac.
+                readTimeout = READ_TIMEOUT_MS
                 instanceFollowRedirects = true
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("User-Agent", USER_AGENT)
@@ -109,7 +111,8 @@ class BuildProxyClient(private val baseUrl: String = BuildProxy.DEFAULT_BASE_URL
     }
 
     private companion object {
-        const val TIMEOUT_MS = 15_000
+        const val CONNECT_TIMEOUT_MS = 15_000
+        const val READ_TIMEOUT_MS = 45_000
         const val DEFAULT_RETRY_S = 60
         const val USER_AGENT = "droidputter-android"
     }
