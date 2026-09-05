@@ -13,14 +13,13 @@
 #include "dp_shadow.h"
 #ifdef ARDUINO
 #include <Arduino.h>
-#include <M5Unified.h>
 #include <lgfx/v1/misc/pixelcopy.hpp>
 #include <string.h>
 namespace dp {
 #ifndef DP_FLUSH_MS
 #define DP_FLUSH_MS 16
 #endif
-static const uint16_t MAXW = DP_SHADOW_W, MAXH = DP_SHADOW_H;
+static const uint16_t MAXW = DP_SHADOW_W;
 static uint8_t stage[32768];             // RLE staging for one flush
 static uint8_t convbuf[MAXW * 2];        // pixelsConv chunk (one row of converted pixels)
 static uint32_t last_flush_ms = 0;
@@ -35,6 +34,8 @@ static void ensureShadow() { if (!shadow_ready) { dp_shadow_reset(); shadow_read
 // forever and the mirror froze on photo-like content. Returns true if something went out (or nothing was
 // dirty); false = paced, or not even one row fits (ring full / dead link -> the watchdog's business).
 static bool flushDirty(bool force) {
+  if (!internal::linked) return false;   // the shadow keeps collecting; nothing leaves before HELLO_ACK
+  internal::LinkLock guard;
   uint16_t y0, y1;
   if (!dp_shadow_dirty(&y0, &y1)) return true;
   uint32_t now = millis();
@@ -58,33 +59,30 @@ static bool flushDirty(bool force) {
   return true;
 }
 
-// Every entry point below no-ops while the link is down (before HELLO_ACK) so an app on the ESP
-// alone runs at full speed with zero overhead -- only window()'s lazy begin() call runs regardless.
+// Every entry point below updates the shadow from the very first write, linked or not (2026-09-04): the shadow
+// is the phone's whole truth, so a HELLO_ACK that arrives after the app has drawn its screen is answered from
+// memory (resync = mark all dirty + flush) instead of reading the panel back over SPI from another task.
+// Nothing is sent before HELLO_ACK (flushDirty gates on `linked`); the per-write cost is a memcpy into RAM.
 void window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye) {
   if (!internal::started) begin(nullptr, internal::scr_w, internal::scr_h, internal::scr_rot);
-  internal::pollIfDue();   // apps without M5Cardputer.update() service the link by drawing
-  if (!internal::linked) return;
+  internal::pollIfDue();   // fast path for apps that draw; the link task covers the ones that do not
   ensureShadow();
   flushDirty(false);
   dp_shadow_set_window(xs, ys, xe, ye);
 }
 void bytes(const uint8_t* data, uint32_t nbytes) {
-  if (!internal::linked) return;
   ensureShadow(); dp_shadow_write_bytes(data, nbytes);
 }
 void repeat(uint32_t raw, uint32_t npixels) {
-  if (!internal::linked) return;
   ensureShadow(); dp_shadow_repeat((uint8_t)(raw & 0xFF), (uint8_t)((raw >> 8) & 0xFF), npixels);
 }
 void fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t raw) {
   internal::pollIfDue();
-  if (!internal::linked) return;
   ensureShadow(); flushDirty(false);
   dp_shadow_fill(x, y, w, h, (uint8_t)(raw & 0xFF), (uint8_t)((raw >> 8) & 0xFF));
 }
 void pixel(uint16_t x, uint16_t y, uint32_t raw) { fill(x, y, 1, 1, raw); }
 void pixelsConv(lgfx::v1::pixelcopy_t* param, uint32_t np) {
-  if (!internal::linked) return;
   ensureShadow();
   lgfx::v1::pixelcopy_t p2 = *param;
   while (np) {
@@ -97,21 +95,12 @@ void pixelsConv(lgfx::v1::pixelcopy_t* param, uint32_t np) {
 namespace internal {
 // Called from dp::poll() every loop: the periodic flush for apps that draw in bursts.
 void flushTick() { if (linked && shadow_ready) flushDirty(false); }
-// Full-frame resync on HELLO_ACK: the shadow is unknown while the link was down, so read the panel
-// back row by row (real SPI RAMRD on Panel_LCD/ST7789, in-RAM on the virtual Panel_Droidputter).
+// Full-frame resync on HELLO_ACK (and on the phone's Repaint button): the shadow has every pixel the app
+// drew since its first write, so mark it all dirty and flush -- memory only, safe from the link task
+// (before 2026-09-04 this read the panel back over SPI, which only the app's task may do).
 void resync() {
   ensureShadow();
-  uint16_t w = scr_w > MAXW ? MAXW : scr_w, h = scr_h > MAXH ? MAXH : scr_h;
-  static uint8_t row[MAXW * 3]; static uint8_t be[MAXW * 2];
-  for (uint16_t y = 0; y < h; y++) {
-    M5.Display.readRectRGB(0, y, w, 1, row);
-    for (uint16_t x = 0; x < w; x++) {
-      uint16_t v = (uint16_t)((row[x * 3] & 0xF8) << 8 | (row[x * 3 + 1] & 0xFC) << 3 | row[x * 3 + 2] >> 3);
-      be[x * 2] = v >> 8; be[x * 2 + 1] = v & 0xFF;
-    }
-    for (uint16_t x = w; x < MAXW; x++) { be[x * 2] = 0; be[x * 2 + 1] = 0; }
-    dp_shadow_load_row(y, be);
-  }
+  dp_shadow_mark_all_dirty();
   flushDirty(true);
 }
 }  // namespace internal

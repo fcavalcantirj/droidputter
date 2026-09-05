@@ -28,6 +28,13 @@ void flushTick();
 // Runs dp::poll() from the tee entry points at most every DP_POLL_MS, re-entrancy safe (see droidputter.cpp):
 // apps that never call M5Cardputer.update() still get HELLO_ACK, keys and flushes as long as they draw.
 void pollIfDue();
+// One recursive mutex around every wire write and every shadow flush: since 2026-09-04 dp::poll() also runs
+// on the shim's own link task (apps that never call M5Cardputer.update() or stop drawing still link), so
+// send()/flushDirty() can be entered from two tasks. Shadow WRITES stay lock-free (a torn band is repaired
+// by the next flush); only the read-and-send side is serialised.
+void lockLink();
+void unlockLink();
+struct LinkLock { LinkLock() { lockLink(); } ~LinkLock() { unlockLink(); } };
 
 uint8_t crc8(uint8_t c, const uint8_t* p, size_t n);
 void put16(uint8_t* p, uint16_t v);

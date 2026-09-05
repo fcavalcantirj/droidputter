@@ -6,6 +6,9 @@
 // can compile this library's src/ directory without pulling in ESP32 headers.
 #ifdef ARDUINO
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
 #include <string.h>
 // Some apps silence their own logging by macro-redefining Serial to a null sink for every
 // translation unit (M5PORKCHOP: `-include src/core/logging.h`, `#define Serial PorkchopSerialSink`).
@@ -30,6 +33,9 @@ uint8_t crc8(uint8_t c, const uint8_t* p, size_t n) { while (n--) { c ^= *p++; f
 void put16(uint8_t* p, uint16_t v) { p[0] = v & 0xFF; p[1] = v >> 8; }
 bool hasSpace(size_t n) { return (size_t)Serial.availableForWrite() >= n; }
 size_t txFree() { int f = Serial.availableForWrite(); return f > 0 ? (size_t)f : 0; }
+#ifndef DP_LINK_TASK_MS
+#define DP_LINK_TASK_MS 16
+#endif
 #ifndef DROIDPUTTER_TXBUF
 #define DROIDPUTTER_TXBUF 32768
 #endif
@@ -50,7 +56,11 @@ static bool usb_write(const uint8_t* p, size_t n) {
   return true;
 }
 // frame = header(5) + payload chunks; payload may be passed in up to 2 pieces
+static SemaphoreHandle_t link_lock = nullptr;
+void lockLink() { if (!link_lock) link_lock = xSemaphoreCreateRecursiveMutex(); xSemaphoreTakeRecursive(link_lock, portMAX_DELAY); }
+void unlockLink() { if (link_lock) xSemaphoreGiveRecursive(link_lock); }
 void send(uint8_t type, const uint8_t* a, size_t na, const uint8_t* b, size_t nb) {
+  LinkLock guard;
   if (!started) return;
   size_t len = na + nb;
   if (!hasSpace(6 + len)) { st_dropped++; return; }   // whole frame or nothing: no half frames on the wire
@@ -86,6 +96,11 @@ void begin(const char* app, uint16_t w, uint16_t h, uint8_t rot) {
   // shim, not the app, owns making the tee transparently work.
   Serial.begin(115200);
   Serial.setTxBufferSize(DROIDPUTTER_TXBUF); Serial.setTxTimeoutMs(20); sendHello();
+  // The link is serviced by the shim's own task from here on: apps that never call M5Cardputer.update()
+  // (M5.Lcd-only) or that stop drawing (geo-tp audiospectrum retrying an absent SD card, 2026-09-04) still
+  // answer PING_IN, take HELLO_ACK, inject keys and flush the shadow. Low priority, 16 ms period.
+  xTaskCreatePinnedToCore([](void*) { for (;;) { dp::poll(); vTaskDelay(pdMS_TO_TICKS(DP_LINK_TASK_MS)); } },
+                          "dp_link", 6144, nullptr, 1, nullptr, tskNO_AFFINITY);
   // Boot report (LOG 0x07): why we reset and whether our own watchdog did it -- readable by any receiver.
   uint32_t marker = wd_boot_marker; wd_boot_marker = 0;
   char msg[48]; int k = snprintf(msg, sizeof msg, "boot rst=%d wd=%lu", (int)esp_reset_reason(),
@@ -186,6 +201,7 @@ void pollIfDue() {
 
 void poll() {
   if (!internal::started) return;
+  internal::LinkLock guard;   // the app task (pollIfDue / M5Cardputer.update) and the link task both come here
   // Link-down releases every held key so a phone that disconnects mid-keypress
   // never leaves a key stuck down on the ESP (no disconnect detection sets
   // internal::linked back to false yet -- see droidputter.cpp task 14 notes --
