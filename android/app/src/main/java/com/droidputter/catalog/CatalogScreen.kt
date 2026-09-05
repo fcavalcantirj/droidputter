@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -16,8 +17,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -88,9 +87,11 @@ fun CatalogScreen(
             // Landscape phones have ~360 dp of height: only the tabs, the search field and Back are fixed
             // chrome; the caption, the build-any-repo row and the build status scroll WITH the list. Before
             // (2026-09-04 22:25, Felipe's screenshot) six stacked rows left no room for the list or Back.
-            TabRow(selectedTabIndex = tab) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Droidputter builds (${myBuilds.size + entries.size})") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("LauncherHub (${hubEntries.size})") })
+            // Two plain buttons instead of a Material TabRow: Felipe (2026-09-05) found the tab strip "SOOOO HARD
+            // to navigate ... clicks only change tab on few places". A Button's whole 52 dp box is the hit target.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SourceButton("Droidputter builds (${myBuilds.size + entries.size})", selected = tab == 0, modifier = Modifier.weight(1f)) { tab = 0 }
+                SourceButton("LauncherHub (${hubEntries.size})", selected = tab == 1, modifier = Modifier.weight(1f)) { tab = 1 }
             }
             OutlinedTextField(
                 value = query,
@@ -151,6 +152,13 @@ fun CatalogScreen(
             )
         }
     }
+}
+
+/** A source selector that is a real button: filled when selected, outlined otherwise, 52 dp tall, fully tappable. */
+@Composable
+private fun SourceButton(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    if (selected) Button(onClick = onClick, modifier = modifier.height(52.dp)) { Text(label) }
+    else OutlinedButton(onClick = onClick, modifier = modifier.height(52.dp)) { Text(label) }
 }
 
 /** One list row: verdict mark, name, then what kind of build it is and its caveats. */
