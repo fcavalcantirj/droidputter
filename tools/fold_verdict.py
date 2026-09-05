@@ -3,8 +3,8 @@
 
 The app submits a verdict as a prefilled issue whose body carries a ```json block with the Verdict record
 (android/core .../catalog/Verdict.kt: name, env, firmware_sha256, shim_commit, board, result, note, date,
-reporter). .github/workflows/verdicts.yml runs this on every `verdict` issue; the issue author is the reporter of
-record and the issue's creation date is the date, whatever the body says.
+reporter). .github/workflows/verdicts.yml runs this on every `verdict` issue; the body's reporter (the phone's anonymous device id) is the reporter of record, else the issue author; the
+issue's creation date is the date, whatever the body says.
 
 Usage:
     python3 tools/fold_verdict.py --body-file body.md --reporter LOGIN --date 2026-09-03 [--verdicts apps/verdicts.json]
@@ -56,7 +56,10 @@ def validate(raw: dict, reporter: str | None, date: str | None) -> tuple[dict | 
             "result": text("result", True, 10).lower(),
             "note": text("note", False, 500),
             "date": (date or text("date", False, 10) or "").strip(),
-            "reporter": (reporter or text("reporter", False, 60) or None),
+            # The body's reporter wins when present: since 2026-09-04 the build proxy files every issue under the
+            # repo owner's identity while the phone puts its anonymous "device-xxxxxxxx" id in the body; the
+            # issue author is only the fallback for hand-written issues.
+            "reporter": (text("reporter", False, 60) or reporter or None),
         }
     except ValueError as e:
         return None, str(e)

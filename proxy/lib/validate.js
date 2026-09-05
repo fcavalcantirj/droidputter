@@ -7,6 +7,11 @@ export const REF_RE = /^[A-Za-z0-9_./-]{0,100}$/;
 export const NAME_RE = /^[a-z0-9_.-]{1,64}$/;
 export const REQUEST_ID_RE = /^[A-Za-z0-9_.-]{1,64}$/;
 export const RUN_ID_RE = /^[0-9]{1,20}$/;
+export const SHA256_RE = /^[0-9a-f]{64}$/;
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const CONTROL_RE = /[\x00-\x1f\x7f]/;
+export const VERDICT_RESULTS = Object.freeze(["works", "broken"]);
+export const VERDICT_KEYS = Object.freeze(["name", "env", "firmware_sha256", "shim_commit", "board", "result", "note", "date", "reporter"]);
 
 export class ValidationError extends Error {
   /** @param {string} message */
@@ -66,4 +71,70 @@ export function validatePartFile(file) {
     throw new ValidationError(`file must be one of ${PART_FILES.join(", ")}`);
   }
   return file;
+}
+
+/**
+ * @typedef {object} VerdictRecord one entry of apps/verdicts.json (android/core .../catalog/Verdict.kt)
+ * @property {string} name
+ * @property {string} env
+ * @property {string} firmware_sha256 64 lowercase hex
+ * @property {string} [shim_commit]
+ * @property {string} board
+ * @property {"works" | "broken"} result
+ * @property {string} note
+ * @property {string} date YYYY-MM-DD
+ * @property {string} [reporter] anonymous device id from the phone
+ */
+
+/**
+ * The Verdict record the phone posts, checked the way tools/fold_verdict.py does (same limits, same
+ * messages) except that over-long fields are refused instead of truncated. Missing, null or empty optional
+ * fields are dropped (shim_commit, reporter) or defaulted (note "", date = today UTC). Keys come out in
+ * VERDICT_KEYS order so the pretty-printed issue body reads like verdicts.json.
+ * @param {unknown} body parsed JSON body of POST /api/verdict
+ * @param {{today?: string}} [o] the date used when the record carries none
+ * @returns {VerdictRecord}
+ */
+export function validateVerdict(body, { today = new Date().toISOString().slice(0, 10) } = {}) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new ValidationError("body must be a JSON object {name, env, firmware_sha256, board, result, ...}");
+  }
+  const raw = /** @type {Record<string, unknown>} */ (body);
+  /** @param {string} key @param {boolean} required @param {number} [limit] */
+  const text = (key, required, limit) => {
+    const v = raw[key];
+    if (v === undefined || v === null) {
+      if (required) throw new ValidationError(`missing ${key}`);
+      return "";
+    }
+    if (typeof v !== "string") throw new ValidationError(`${key} is not a string`);
+    const s = v.trim();
+    if (required && !s) throw new ValidationError(`empty ${key}`);
+    if (limit !== undefined && s.length > limit) throw new ValidationError(`${key} is longer than ${limit} characters`);
+    if (key !== "note" && CONTROL_RE.test(s)) throw new ValidationError(`${key} contains control characters`);
+    return s;
+  };
+  const name = text("name", true, 80);
+  const env = text("env", true, 40);
+  const firmware_sha256 = text("firmware_sha256", true).toLowerCase();
+  if (!SHA256_RE.test(firmware_sha256)) throw new ValidationError("firmware_sha256 is not 64 hex characters");
+  const shim_commit = text("shim_commit", false, 40);
+  const board = text("board", true, 40);
+  const result = text("result", true).toLowerCase();
+  if (!VERDICT_RESULTS.includes(result)) throw new ValidationError("result must be 'works' or 'broken'");
+  const note = text("note", false, 500);
+  const date = text("date", false, 10) || today;
+  if (!DATE_RE.test(date)) throw new ValidationError("date is not YYYY-MM-DD");
+  const reporter = text("reporter", false, 60);
+  return {
+    name,
+    env,
+    firmware_sha256,
+    ...(shim_commit ? { shim_commit } : {}),
+    board,
+    result: /** @type {"works" | "broken"} */ (result),
+    note,
+    date,
+    ...(reporter ? { reporter } : {}),
+  };
 }

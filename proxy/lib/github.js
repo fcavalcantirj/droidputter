@@ -9,12 +9,14 @@ export class GitHubError extends Error {
    * @param {string} message
    * @param {number} status HTTP status to surface (502 for upstream failures, 404 when GitHub says so)
    * @param {string} path GitHub path that failed (no token, no query secrets)
+   * @param {number} [upstream] the status GitHub itself answered (0 when it could not be reached)
    */
-  constructor(message, status, path) {
+  constructor(message, status, path, upstream = 0) {
     super(message);
     this.name = "GitHubError";
     this.status = status;
     this.path = path;
+    this.upstream = upstream;
   }
 }
 
@@ -56,7 +58,7 @@ export function createGitHub({ token, repo, workflow, apiBase = "https://api.git
       } catch {
         /* non-JSON error body */
       }
-      throw new GitHubError(`github ${res.status} on ${path}${detail}`, status, path);
+      throw new GitHubError(`github ${res.status} on ${path}${detail}`, status, path, res.status);
     }
     return res;
   }
@@ -135,6 +137,25 @@ export function createGitHub({ token, repo, workflow, apiBase = "https://api.git
         if (!res.ok) throw new GitHubError(`artifact blob ${res.status}`, 502, path);
       }
       return new Uint8Array(await res.arrayBuffer());
+    },
+
+    /**
+     * Open an issue on the repo (201 with the issue). On a fine-grained PAT without Issues: write GitHub
+     * answers 403 or 404 -- the caller reads .upstream to tell that apart from a real failure.
+     * @param {{title: string, body: string, labels?: string[]}} issue labels omitted = none requested
+     * @returns {Promise<{number: number, html_url: string}>}
+     */
+    async createIssue({ title, body, labels }) {
+      const path = `${base}/issues`;
+      const j = await api(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(labels ? { title, body, labels } : { title, body }),
+      });
+      if (!j || typeof j.number !== "number" || typeof j.html_url !== "string") {
+        throw new GitHubError("issue created without a number", 502, path, 201);
+      }
+      return { number: j.number, html_url: j.html_url };
     },
   };
 }

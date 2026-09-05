@@ -2,6 +2,7 @@
 // factories. Everything returns real Response objects so lib/github.js runs unmodified.
 
 import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 import { strToU8, zipSync } from "fflate";
 
 export const REPO = "fcavalcantirj/droidputter";
@@ -88,15 +89,20 @@ export function makeArtifact(id, { name = "stellar-map-m5cardputer", expired = f
 }
 
 /**
- * @param {{shimSha?: string, runs?: any[], runsPage2?: any[], artifacts?: Record<string, any[]>, zips?: Record<string, Uint8Array>, failCommits?: boolean}} [o]
+ * @param {{shimSha?: string, runs?: any[], runsPage2?: any[], artifacts?: Record<string, any[]>, zips?: Record<string, Uint8Array>, failCommits?: boolean, issueStatuses?: number[]}} [o]
+ *   issueStatuses: what successive POST /issues answer (201 once the list is used up)
  */
-export function fakeGitHub({ shimSha = SHIM_SHA, runs = [], runsPage2 = [], artifacts = {}, zips = {}, failCommits = false } = {}) {
+export function fakeGitHub({ shimSha = SHIM_SHA, runs = [], runsPage2 = [], artifacts = {}, zips = {}, failCommits = false, issueStatuses = [] } = {}) {
   /** @type {{method: string, url: string, headers: Record<string, string>, body?: string}[]} */
   const calls = [];
   /** @type {any[]} */
   const dispatches = [];
   /** @type {{url: string, hasAuth: boolean}[]} */
   const blobHits = [];
+  /** @type {{title: string, body: string, labels?: string[]}[]} */
+  const issues = [];
+  const pendingIssueStatuses = [...issueStatuses];
+  const ISSUE_MESSAGES = { 403: "Resource not accessible by personal access token", 404: "Not Found", 422: "Validation Failed" };
 
   const jsonRes = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -133,6 +139,14 @@ export function fakeGitHub({ shimSha = SHIM_SHA, runs = [], runsPage2 = [], arti
       dispatches.push(JSON.parse(init.body));
       return new Response(null, { status: 204 });
     }
+    if (p === `${base}/issues` && method === "POST") {
+      const issue = JSON.parse(init.body);
+      issues.push(issue);
+      const status = pendingIssueStatuses.length ? pendingIssueStatuses.shift() : 201;
+      if (status !== 201) return jsonRes(status, { message: ISSUE_MESSAGES[status] || "boom" });
+      const number = 100 + issues.length;
+      return jsonRes(201, { number, html_url: `https://github.com/${REPO}/issues/${number}`, title: issue.title, labels: (issue.labels || []).map((name) => ({ name })) });
+    }
     let m = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/(\d+)\/artifacts$/.exec(p);
     if (m) return jsonRes(200, { total_count: (artifacts[m[1]] || []).length, artifacts: artifacts[m[1]] || [] });
     m = /^\/repos\/[^/]+\/[^/]+\/actions\/artifacts\/(\d+)\/zip$/.exec(p);
@@ -140,7 +154,7 @@ export function fakeGitHub({ shimSha = SHIM_SHA, runs = [], runsPage2 = [], arti
     return jsonRes(404, { message: "Not Found" });
   };
 
-  return { fetch: fetchImpl, calls, dispatches, blobHits };
+  return { fetch: fetchImpl, calls, dispatches, blobHits, issues };
 }
 
 /**
@@ -152,13 +166,39 @@ export function ctxWith(fake, { token = TOKEN, baseUrl = "https://proxy.test", n
 }
 
 /**
- * @param {{method?: string, path?: string, body?: unknown, params?: Record<string, string>, headers?: Record<string, string>}} [o]
+ * @param {{method?: string, path?: string, body?: unknown, params?: Record<string, string>, headers?: Record<string, string>, remoteAddress?: string, bodyBytes?: number}} [o]
+ *   bodyBytes defaults to the size of the body as JSON
  */
-export function req({ method = "GET", path = "/", body, params = {}, headers = {} } = {}) {
-  return { method, url: new URL(path, "https://proxy.test"), headers: { host: "proxy.test", ...headers }, params, body };
+export function req({ method = "GET", path = "/", body, params = {}, headers = {}, remoteAddress = "198.51.100.7", bodyBytes } = {}) {
+  const bytes = bodyBytes !== undefined ? bodyBytes : body === undefined ? 0 : Buffer.byteLength(JSON.stringify(body));
+  return { method, url: new URL(path, "https://proxy.test"), headers: { host: "proxy.test", ...headers }, params, body, bodyBytes: bytes, remoteAddress };
 }
 
 /** @param {{body: string | Uint8Array}} res */
 export function parse(res) {
   return JSON.parse(typeof res.body === "string" ? res.body : Buffer.from(res.body).toString("utf8"));
+}
+
+/**
+ * Drive the real Vercel-style (req, res) adapter with a streamed body.
+ * @param {(req: any, res: any) => Promise<void>} handler
+ * @param {{method: string, url: string, body?: string, headers?: Record<string, string>, remoteAddress?: string}} o
+ */
+export async function invoke(handler, { method, url, body, headers = {}, remoteAddress = "198.51.100.7" }) {
+  const chunks = body === undefined ? [] : [Buffer.from(body)];
+  const request = Object.assign(Readable.from(chunks), { method, url, headers: { host: "proxy.test", ...headers }, socket: { remoteAddress } });
+  return new Promise((resolve) => {
+    const out = { status: 0, headers: {}, body: /** @type {any} */ (undefined) };
+    const response = {
+      writeHead(status, headers) {
+        out.status = status;
+        out.headers = headers;
+      },
+      end(payload) {
+        out.body = payload;
+        resolve(out);
+      },
+    };
+    handler(request, response);
+  });
 }

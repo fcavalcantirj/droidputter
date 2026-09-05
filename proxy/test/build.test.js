@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { Readable } from "node:stream";
 import { beforeEach, describe, test } from "node:test";
 import { handle } from "../api/build.js";
 import { vercel } from "../lib/http.js";
 import { IN_FLIGHT_LIMIT, _resetShimCache, runTitle } from "../lib/builds.js";
-import { SHIM, TOKEN, UPSTREAM, ctxWith, fakeGitHub, makeRun, parse, req } from "./helpers.js";
+import { SHIM, TOKEN, UPSTREAM, ctxWith, fakeGitHub, invoke, makeRun, parse, req } from "./helpers.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const post = (body) => req({ method: "POST", path: "/api/build", body });
@@ -122,26 +121,6 @@ describe("POST /api/build", () => {
     assert.equal((await handle(req({ method: "DELETE", path: "/api/build" }), ctxWith(fakeGitHub()))).status, 405);
   });
 });
-
-/** Drive the real Vercel-style (req, res) adapter with a streamed body. */
-async function invoke(handler, { method, url, body, headers = {} }) {
-  const chunks = body === undefined ? [] : [Buffer.from(body)];
-  const request = Object.assign(Readable.from(chunks), { method, url, headers: { host: "proxy.test", ...headers } });
-  return new Promise((resolve) => {
-    const out = { status: 0, headers: {}, body: /** @type {any} */ (undefined) };
-    const response = {
-      writeHead(status, headers) {
-        out.status = status;
-        out.headers = headers;
-      },
-      end(payload) {
-        out.body = payload;
-        resolve(out);
-      },
-    };
-    handler(request, response);
-  });
-}
 
 describe("vercel adapter", () => {
   const saved = { ...process.env };

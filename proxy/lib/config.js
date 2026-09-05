@@ -3,7 +3,7 @@
 
 /**
  * @typedef {object} ProxyConfig
- * @property {string} token     GITHUB_TOKEN -- fine-grained PAT (Actions read+write, Contents read on the one repo)
+ * @property {string} token     GITHUB_TOKEN -- fine-grained PAT (Actions read+write, Contents read, Issues read+write on the one repo)
  * @property {string} repo      GITHUB_REPO  -- owner/name that hosts build-app.yml (default fcavalcantirj/droidputter)
  * @property {string} workflow  WORKFLOW     -- workflow file name (default build-app.yml)
  * @property {string} baseUrl   BASE_URL     -- public origin of this proxy for part URLs ("" = derive from the request Host)
