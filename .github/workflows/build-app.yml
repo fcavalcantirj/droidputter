@@ -107,6 +107,16 @@ jobs:
           # The artifact is a build CACHE the proxy streams from, not a distribution channel: a week is plenty.
           retention-days: 7
 
+      # The linked ELF (20-40 MB) rides in its OWN artifact: the proxy picks the run's artifact by the -m5cardputer
+      # suffix and unzips it whole in memory, so the flashable zip stays small; the ELF is for the Mac's
+      # xtensa-esp32s3-elf-addr2line when the phone's PanicSniffer reports a Backtrace (Pigtail IWDT triage).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.name }}-elf
+          path: apps/${{ inputs.name }}/.pio/build/m5cardputer/firmware.elf
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Build log tail (on failure)
         if: failure()
         run: |

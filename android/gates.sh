@@ -9,6 +9,10 @@ if [ "$android_imports" != "0" ]; then
     exit 1
 fi
 
-JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :core:koverVerify
+# The Mac builds with Android Studio's JBR; on a GitHub runner (android.yml) that path does not exist and gradlew
+# aborts on an invalid JAVA_HOME (7/7 red runs before 2026-09-05), so use the JBR only when it is there.
+JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+[ -d "$JBR" ] && export JAVA_HOME="$JBR"
+./gradlew --no-daemon :core:koverVerify
 
 echo "gates ok"
