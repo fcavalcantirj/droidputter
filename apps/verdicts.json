@@ -64,5 +64,16 @@
     "note": "auto: linked, 923 frames in 20 s",
     "date": "2026-09-05",
     "reporter": "device-85ab6cb7"
+  },
+  {
+    "name": "m5-card-computer-i2c-scanner",
+    "env": "m5cardputer",
+    "firmware_sha256": "3032eacf526742f64ab6a5f1e41a6923ac4946efb46b9e32b9002ee559e1f6c0",
+    "shim_commit": "bd8cba0",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "",
+    "date": "2026-09-05",
+    "reporter": "device-85ab6cb7"
   }
 ]
