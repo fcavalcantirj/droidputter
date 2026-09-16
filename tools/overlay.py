@@ -128,11 +128,15 @@ upload_speed = 460800
 ; ESP-IDF startup probes PSRAM with the core's memory type BEFORE any console exists, and a QSPI-typed firmware
 ; on an octal module hangs right there (2026-09-05: StickS3 #2 showed the ROM banner, then silence). qio_opi +
 ; PSRAM on is the env proven on the StickS3 on 2026-09-03; a module without PSRAM logs "not found" and runs on.
+; Proven on a StickS3 2026-09-16 (progress.txt): the generic esp32-s3-devkitc-1 variant and the M5GFX board hint
+; 26 (board_M5StickS3, what the 2026-09-03 StickS3 env used) instead of the recipe's own hint (24 = Cardputer ADV);
+; with the StampS3 variant + hint 24 the same app booted to the ROM banner and hung before any console.
 [env:m5cardputer-virtual]
 extends = env:m5cardputer
+board = esp32-s3-devkitc-1
 board_build.psram = true
 board_build.arduino.memory_type = qio_opi
-build_flags = ${{env:m5cardputer.build_flags}} -DDROIDPUTTER_VIRTUAL=1
+build_flags = ${{env:m5cardputer.build_flags}} -DDROIDPUTTER_VIRTUAL=1 -UM5GFX_BOARD -DM5GFX_BOARD=26
 """
 
 
