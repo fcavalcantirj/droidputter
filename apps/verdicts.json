@@ -119,5 +119,16 @@
     "note": "auto: boots=0 hello=false frames=0",
     "date": "2026-09-05",
     "reporter": "device-85ab6cb7"
+  },
+  {
+    "name": "pense-bem-sticks3",
+    "env": "m5stack-sticks3-virtual",
+    "firmware_sha256": "d3009da50dc56e7d46706092cb6c45101d47a0803337f0de06387c6df0c40dea",
+    "shim_commit": "0903",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 22 frames in 20 s",
+    "date": "2026-09-16",
+    "reporter": "device-85ab6cb7"
   }
 ]
