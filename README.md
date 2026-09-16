@@ -87,14 +87,28 @@ Every droidputter-ready build is listed with its parts, offsets and sha256
 in [apps/catalog.json](./apps/catalog.json) (regenerate with
 `python3 tools/make_catalog.py`).
 
-## Status per board
+## Tested boards and phones
 
-| Board | Real panel build | Virtual (no-display) build | Hardware verified | Notes |
+Every row is a hardware result from the journal (`progress.txt`), with the date it was last seen working. "Flash from phone" = the
+Droidputter app wrote and md5-verified the parts itself over USB-OTG; "link" = the shim's HELLO arrived and frames flowed to
+the phone's screen. Build env = the PlatformIO env the proxy builds (`m5cardputer` = the board's own TFT is teed to the phone,
+`m5cardputer-virtual` = no display driver at all, the phone is the only screen).
+
+| Board | Chip / module | Build env | Flash from phone | Link + screen + keys | Last [REAL] | Notes |
+|---|---|---|---|---|---|---|
+| M5Stack Cardputer ADV | ESP32-S3 (StampS3, no PSRAM) | `m5cardputer` | yes (13 s for 1.1 MB, compressed) | yes, plus GPS feed | 2026-09-05 | Desk oracle: its own TFT shows the same frames. 19 recipes + any GitHub Cardputer app via the proxy. |
+| M5Stack StickS3 | ESP32-S3-PICO-1 (octal PSRAM) | `m5cardputer-virtual` | yes (8 s for 470 KB) | yes, own screen dark | 2026-09-16 | Pense-Bem and stellar-map played from the phone. First flash over a UiFlow2/MicroPython firmware needs BOOT held while replugging (software CDC ignores the DTR/RTS reset); afterwards the phone resets it alone. |
+| Bare ESP32-S3-N16R8 devkit | ESP32-S3-WROOM-1 (octal PSRAM) | `m5cardputer-virtual` | pending | pending | — | Use the USB-labeled port (native USB-Serial/JTAG), never the COM/UART bridge port. |
+| LilyGO / any board on a CH9102, CH343 or CP210x bridge | ESP32 or ESP32-S3 | — | no | no | 2026-09-05 (tried) | The shim links over the S3's native USB-Serial/JTAG only; a UART bridge never carries it, and a classic ESP32 cannot run the S3 build. |
+| ESP32-C5 | — | — | — | — | — | Blocked: `espressif32@6.12.0` (arduino-esp32 2.0.17) has no C5 board defs. |
+
+| Phone | OS | Role | Last [REAL] | Notes |
 |---|---|---|---|---|
-| Cardputer / Cardputer ADV (ESP32-S3) | `m5cardputer` | `m5cardputer-virtual` | [REAL] — S1–S5, phone end-to-end | Flagship dev target |
-| M5Stack StickS3 (ESP32-S3-PICO-1-N8R8) | `m5stack-sticks3` | `m5stack-sticks3-virtual` | build-only [UAT pending] | Toolchain-only proof this session; needs the physical unit for the hardware UAT |
-| ESP32-C5 | — | — | blocked | `espressif32@6.12.0` (arduino-esp32 2.0.17) has no C5 board defs; needs arduino-esp32 3.x, a repo-wide platform re-pin, out of scope so far |
-| Bare ESP32-S3-N16R8 devkit | `esp32-s3-devkitc-1-virtual` | same | build-only [UAT pending] | The north-star board: no display of its own, phone is the only screen; reserved for esp-claw, needs Felipe's explicit OK before hardware use |
+| Poco X7 Pro | Android 16 / HyperOS | screen, keyboard, GPS, flasher | 2026-09-16 | 16 KB USB reads; the link's foreground service keeps GPS flowing with the screen off. Wireless debugging for triage (the USB-C port is the ESP's). |
+
+Rule learned on the StickS3: a virtual build must use the generic `esp32-s3-devkitc-1` variant, the octal-PSRAM memory type and
+the M5GFX board hint 26 (`board_M5StickS3`); with the StampS3 variant and the Cardputer ADV hint the same app booted to the
+ROM banner and hung before any console. `tools/overlay.py` writes that env for every recipe.
 
 ## Repo layout
 
