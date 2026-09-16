@@ -130,5 +130,16 @@
     "note": "auto: linked, 22 frames in 20 s",
     "date": "2026-09-16",
     "reporter": "device-85ab6cb7"
+  },
+  {
+    "name": "stellar-map-sticks3",
+    "env": "m5stack-sticks3-virtual",
+    "firmware_sha256": "7d04998d60a4cc513e4c636d76c2703816032d27cb7400281198cdf7d79c9ab6",
+    "shim_commit": "8f4a7be",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 804 frames in 20 s",
+    "date": "2026-09-16",
+    "reporter": "device-85ab6cb7"
   }
 ]
