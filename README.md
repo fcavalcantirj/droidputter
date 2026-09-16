@@ -7,8 +7,8 @@ own — a bare ESP32-S3 (the Cardputer's StampS3 class, 8 MB flash) is the
 target; a real Cardputer ADV is used in dev only because its own TFT gives
 ground truth next to the phone.
 
-Proven on hardware (2026-09-02/03, see [progress.txt](./progress.txt) S1–S5
-and the phone-pass entries): a patched M5GFX 0.2.27 / M5Cardputer 1.1.1
+Proven on hardware (2026-09-02 → 2026-09-16, see [progress.txt](./progress.txt)
+and the board matrix below): a patched M5GFX 0.2.27 / M5Cardputer 1.1.1
 **shim** tees every pixel write over USB-CDC and merges KEY frames injected
 from the phone. Any open-source Cardputer app, rebuilt against the shim
 UNCHANGED, becomes a transparent phone mirror — no per-app protocol code.
@@ -24,6 +24,14 @@ phone — soft keyboard tap driving the ESP, screen mirrored live:
 |---|---|
 | ![first render](docs/img/phone-first-render.png) | ![live gameplay](docs/img/phone-operacao-live.png) |
 | ![soft keyboard](docs/img/phone-adicao-softkeys.png) | ![demo replay](docs/img/demo-replay.png) |
+
+The same, with no display anywhere but the phone (2026-09-16): a bare
+ESP32-S3-N16R8 devkit running wisnc/stellar-map built on demand from GitHub,
+and a StickS3 with its own screen dark playing Pense-Bem:
+
+| | |
+|---|---|
+| ![bare S3 devkit, stellar-map](docs/img/phone-bare-s3-devkit-stellar-2026-09-16.png) | ![StickS3, Pense-Bem](docs/img/phone-sticks3-pensebem-2026-09-16.png) |
 
 A 30 s screen recording exists at `docs/img/phone-demo.mp4` (git-ignored,
 6.4 MB — regenerate with `adb shell screenrecord` per
@@ -69,12 +77,32 @@ cd apps/<your-app> && pio run -e m5cardputer
 See `apps/pense-bem/` (a private app, unmodified) and `apps/m5-example/`
 (the M5Cardputer library's own upstream example) for two working overlays.
 
-## Flash from a phone
+## Build on demand and flash from the phone
 
-No native flasher yet — the Android app hands off the built `.bin` parts to
-any third-party ESP32 flasher (e.g. Play Store `ESP32_Flasher`) via the
-share sheet, or you flash manually with the offsets below. Full detail,
-including the phone-side "Catalog" share flow: [docs/FLASHING.md](./docs/FLASHING.md).
+Nothing is pre-built or hosted. In the app's Catalog:
+
+1. **Pick the target**: `bare ESP32-S3` (the phone is the only screen) or
+   `Cardputer ADV` (the board's own TFT is teed to the phone).
+2. **Build**: tap "Build mirror version" on any entry with a GitHub source, or
+   paste any `owner/repo` into "Build any GitHub repo". The phone asks the build
+   proxy (`proxy/`, a few Vercel functions holding a repo-scoped token), which
+   dispatches [`.github/workflows/build-app.yml`](./.github/workflows/build-app.yml):
+   `tools/overlay.py` clones the app, generates the shim overlay, PlatformIO
+   builds it on a GitHub runner (~2-4 min, cached for a day), and the proxy
+   streams the parts out of the run's artifact. No Mac, no hosted binaries.
+3. **Flash from phone**: the app resets the ESP32-S3 into its ROM bootloader
+   over USB-OTG (its own esptool: SLIP, SYNC, compressed writes, MD5 verify),
+   writes the four parts, hard-resets, and relinks within ~300 ms. A firmware
+   whose USB is a software CDC (UiFlow2, MicroPython) cannot be reset that way
+   the first time: hold BOOT while replugging, once.
+4. **Verdict**: 20 s after the flash the app decides works / broken from the
+   link evidence (boot log, HELLO, frames) or asks you; either way one tap files
+   a GitHub issue through the proxy, and an Action folds it into
+   [apps/verdicts.json](./apps/verdicts.json), which every phone reads back.
+
+The Cardputer ADV recipes under `apps/` and the LauncherHub feed (prebuilt
+M5Burner binaries, flash-only, no mirror) are the other two catalog sources.
+Manual flashing uses the same parts and offsets:
 
 | File             | Offset  |
 |------------------|---------|
@@ -83,9 +111,8 @@ including the phone-side "Catalog" share flow: [docs/FLASHING.md](./docs/FLASHIN
 | `boot_app0.bin`  | `0xE000`|
 | `firmware.bin`   | `0x10000`|
 
-Every droidputter-ready build is listed with its parts, offsets and sha256
-in [apps/catalog.json](./apps/catalog.json) (regenerate with
-`python3 tools/make_catalog.py`).
+Details: [docs/FLASHING.md](./docs/FLASHING.md); the recipe index is
+[apps/catalog.json](./apps/catalog.json) (`python3 tools/make_catalog.py`).
 
 ## Tested boards and phones
 

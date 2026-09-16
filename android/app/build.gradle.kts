@@ -42,7 +42,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1"
+        versionName = "0.0.1"
         // Build proxy origin override for LAN spikes: `./gradlew assembleDebug -PproxyBaseUrl=http://<mac>:8787`.
         // Empty = the app's default (BuildProxy.DEFAULT_BASE_URL, the deployed proxy).
         buildConfigField("String", "PROXY_BASE_URL", "\"${project.findProperty("proxyBaseUrl") ?: ""}\"")
