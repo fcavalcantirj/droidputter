@@ -33,6 +33,16 @@ val copyCatalogManifest by tasks.registering(Sync::class) {
     into(layout.buildDirectory.dir("generated/catalogAssets"))
 }
 
+// Release signing inputs (release.yml on a v* tag). All four come from the environment; none set = local dev build
+// with the debug key, exactly as before. A keystore path without the other three is a misconfiguration, not a
+// silent fallback, so it fails here rather than shipping a debug-signed "release".
+val releaseKeystore = System.getenv("RELEASE_KEYSTORE")?.takeIf { it.isNotBlank() }?.let { File(it) }?.takeIf { it.isFile }
+val releaseSigningVars = listOf("RELEASE_KEYSTORE_PASSWORD", "RELEASE_KEY_ALIAS", "RELEASE_KEY_PASSWORD")
+val releaseSigningReady = releaseKeystore != null && releaseSigningVars.all { !System.getenv(it).isNullOrEmpty() }
+if (releaseKeystore != null && !releaseSigningReady) {
+    error("RELEASE_KEYSTORE is set but ${releaseSigningVars.filter { System.getenv(it).isNullOrEmpty() }} missing")
+}
+
 android {
     namespace = "com.droidputter"
     compileSdk = 35
@@ -51,15 +61,27 @@ android {
         buildConfigField("int", "USB_READ_BUFFER", "${project.findProperty("usbReadBuffer") ?: "16384"}")
     }
 
+    signingConfigs {
+        // Populated only when the four RELEASE_* env vars exist; otherwise an empty config nothing references.
+        create("release") {
+            if (releaseSigningReady) {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Dev-key signed until Felipe supplies a release keystore (a store secret is his call). CI signs with
-            // the runner's throwaway debug key, so a CI-built release APK is re-signed on the Mac with
-            // ~/.android/debug.keystore (apksigner) before `adb install -r` over the debug build.
-            signingConfig = signingConfigs.getByName("debug")
+            // Release key when RELEASE_KEYSTORE points at an existing .jks: CI (release.yml) decodes it from the
+            // RELEASE_KEYSTORE_B64 secret into a temp file. Otherwise the debug key, so local/android.yml builds are
+            // unchanged. Losing that keystore means no in-place updates for installed users (uninstall + reinstall).
+            signingConfig = signingConfigs.getByName(if (releaseSigningReady) "release" else "debug")
         }
     }
 

@@ -77,6 +77,19 @@ cd apps/<your-app> && pio run -e m5cardputer
 See `apps/pense-bem/` (a private app, unmodified) and `apps/m5-example/`
 (the M5Cardputer library's own upstream example) for two working overlays.
 
+## Install the app
+
+Download `droidputter-<version>.apk` from the
+[GitHub Releases page](https://github.com/fcavalcantirj/droidputter/releases)
+and install it: `adb install droidputter-<version>.apk`, or open the file on
+the phone. Needs Android 8+ and a phone with USB-OTG host support. Plug the
+ESP32-S3 in with an OTG cable, grant the USB permission once, and the Catalog
+does the rest (build, flash, link).
+
+The release APK is signed with the project's release key, so a newer release
+installs in place over the old one. A debug build from `android.yml` uses a
+different key and cannot be installed over it (uninstall first).
+
 ## Build on demand and flash from the phone
 
 Nothing is pre-built or hosted. In the app's Catalog:

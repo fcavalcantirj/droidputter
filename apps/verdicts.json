@@ -101,50 +101,6 @@
   {
     "name": "stellar-map",
     "env": "m5cardputer-virtual",
-    "firmware_sha256": "0640462ca6de3474a1d6b66dc6413fc6afcf2db44c935a3f3346d5d35a98adca",
-    "shim_commit": "8f4a7be",
-    "board": "unknown",
-    "result": "broken",
-    "note": "auto: boots=0 hello=false frames=0",
-    "date": "2026-09-05",
-    "reporter": "device-85ab6cb7"
-  },
-  {
-    "name": "stellar-map",
-    "env": "m5cardputer-virtual",
-    "firmware_sha256": "cc53c513d391c62e29bfcb6c32d623f35ef79ed381672eee9b57653a909119e2",
-    "shim_commit": "c899091",
-    "board": "unknown",
-    "result": "broken",
-    "note": "auto: boots=0 hello=false frames=0",
-    "date": "2026-09-05",
-    "reporter": "device-85ab6cb7"
-  },
-  {
-    "name": "pense-bem-sticks3",
-    "env": "m5stack-sticks3-virtual",
-    "firmware_sha256": "d3009da50dc56e7d46706092cb6c45101d47a0803337f0de06387c6df0c40dea",
-    "shim_commit": "0903",
-    "board": "cardputer-adv",
-    "result": "works",
-    "note": "auto: linked, 22 frames in 20 s",
-    "date": "2026-09-16",
-    "reporter": "device-85ab6cb7"
-  },
-  {
-    "name": "stellar-map-sticks3",
-    "env": "m5stack-sticks3-virtual",
-    "firmware_sha256": "7d04998d60a4cc513e4c636d76c2703816032d27cb7400281198cdf7d79c9ab6",
-    "shim_commit": "8f4a7be",
-    "board": "cardputer-adv",
-    "result": "works",
-    "note": "auto: linked, 804 frames in 20 s",
-    "date": "2026-09-16",
-    "reporter": "device-85ab6cb7"
-  },
-  {
-    "name": "stellar-map",
-    "env": "m5cardputer-virtual",
     "firmware_sha256": "f2b3455fa54f0b3aed2f2d0e47546975d69b954d049faf7fc902b7effdf02b29",
     "shim_commit": "5d7970a",
     "board": "cardputer-adv",

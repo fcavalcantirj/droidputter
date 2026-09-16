@@ -1,0 +1,112 @@
+# GitHub Release on a version tag (v*): runs the same :core tests + kover gate + static gate as android.yml, builds
+# the R8-minified release APK and AAB signed with the project's RELEASE key (decoded from the RELEASE_KEYSTORE_B64
+# secret into a temp file; RELEASE_KEYSTORE_PASSWORD / RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD unlock it), verifies
+# the signature with apksigner and refuses a debug-key fallback, then publishes droidputter-<tag>.apk,
+# droidputter-<tag>.aab and SHA256SUMS on a GitHub Release whose notes are the annotated tag's message.
+# Tags are created ONLY by Felipe (`git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z`); nothing here creates a
+# tag, bumps versionCode/versionName, or touches Google Play. Losing the keystore = no in-place updates for users.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode the release keystore
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_B64" ]; then
+            echo "::error::RELEASE_KEYSTORE_B64 secret is empty. Add the release keystore as base64 (base64 -i release.jks | pbcopy) under Settings > Secrets and variables > Actions, together with RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD."
+            exit 1
+          fi
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          if [ ! -s "$RUNNER_TEMP/release.jks" ]; then
+            echo "::error::decoded keystore is empty: RELEASE_KEYSTORE_B64 is not valid base64"
+            exit 1
+          fi
+          echo "keystore: $(stat -c %s "$RUNNER_TEMP/release.jks") bytes"
+
+      - name: Tests, coverage gate, release APK + AAB, static gate
+        working-directory: android
+        env:
+          RELEASE_KEYSTORE: ${{ runner.temp }}/release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :core:test :core:koverVerify :app:assembleRelease :app:bundleRelease
+          bash gates.sh
+          ls -la app/build/outputs/apk/release/app-release.apk app/build/outputs/bundle/release/app-release.aab
+
+      - name: Name the assets and write SHA256SUMS
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/droidputter-${GITHUB_REF_NAME}.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "dist/droidputter-${GITHUB_REF_NAME}.aab"
+          cd dist
+          sha256sum "droidputter-${GITHUB_REF_NAME}.apk" "droidputter-${GITHUB_REF_NAME}.aab" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Verify the APK signature (release key, never the debug key)
+        run: |
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          BT="$SDK/build-tools/35.0.0"
+          if [ ! -x "$BT/apksigner" ]; then
+            BT="$(ls -d "$SDK"/build-tools/*/ | sort -V | tail -n 1)"
+            echo "build-tools 35.0.0 absent, using $BT"
+          fi
+          APK="dist/droidputter-${GITHUB_REF_NAME}.apk"
+          "$BT/apksigner" verify --print-certs --verbose "$APK" | tee dist/apksigner.txt
+          if grep -q 'CN=Android Debug' dist/apksigner.txt; then
+            echo "::error::$APK is signed with a debug key (release signing config was not applied); refusing to publish"
+            exit 1
+          fi
+
+      - name: Release notes = annotated tag message + fixed footer
+        run: |
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > dist/RELEASE_NOTES.md
+          if [ ! -s dist/RELEASE_NOTES.md ]; then
+            echo "Droidputter ${GITHUB_REF_NAME}" > dist/RELEASE_NOTES.md
+          fi
+          cat >> dist/RELEASE_NOTES.md <<EOF
+
+          ---
+          **Assets**
+          - \`droidputter-${GITHUB_REF_NAME}.apk\` — the app; install this one
+          - \`droidputter-${GITHUB_REF_NAME}.aab\` — Android App Bundle (not needed to install)
+          - \`SHA256SUMS\` — checksums of both
+
+          **Install**: \`adb install droidputter-${GITHUB_REF_NAME}.apk\`, or open the APK on the phone (Android 8+). USB-OTG required: plug the ESP32-S3 in with an OTG cable and grant the USB permission once.
+          EOF
+          cat dist/RELEASE_NOTES.md
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "Droidputter $GITHUB_REF_NAME" \
+            --notes-file dist/RELEASE_NOTES.md \
+            "dist/droidputter-${GITHUB_REF_NAME}.apk" \
+            "dist/droidputter-${GITHUB_REF_NAME}.aab" \
+            dist/SHA256SUMS
