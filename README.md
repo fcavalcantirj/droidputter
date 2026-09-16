@@ -98,9 +98,9 @@ the phone's screen. Build env = the PlatformIO env the proxy builds (`m5cardpute
 |---|---|---|---|---|---|---|
 | M5Stack Cardputer ADV | ESP32-S3 (StampS3, no PSRAM) | `m5cardputer` | yes (13 s for 1.1 MB, compressed) | yes, plus GPS feed | 2026-09-05 | Desk oracle: its own TFT shows the same frames. 19 recipes + any GitHub Cardputer app via the proxy. |
 | M5Stack StickS3 | ESP32-S3-PICO-1 (octal PSRAM) | `m5cardputer-virtual` | yes (8 s for 470 KB) | yes, own screen dark | 2026-09-16 | Pense-Bem and stellar-map played from the phone. First flash over a UiFlow2/MicroPython firmware needs BOOT held while replugging (software CDC ignores the DTR/RTS reset); afterwards the phone resets it alone. |
-| Bare ESP32-S3-N16R8 devkit | ESP32-S3-WROOM-1 (octal PSRAM) | `m5cardputer-virtual` | pending | pending | — | Use the USB-labeled port (native USB-Serial/JTAG), never the COM/UART bridge port. |
+| Bare ESP32-S3-N16R8 devkit | ESP32-S3-WROOM-1 (octal PSRAM) | `m5cardputer-virtual` | pending | pending | — | Use the USB-labeled port (native USB-Serial/JTAG), never the COM/UART bridge port. Same silicon and firmware as the StickS3 row. |
+| ESP32-C5-DevKitC-1 | ESP32-C5 (RISC-V) | — | refused | — | 2026-09-16 | The phone flasher reads the chip magic (0x30e1706f) and stops before writing: S3 only. |
 | LilyGO / any board on a CH9102, CH343 or CP210x bridge | ESP32 or ESP32-S3 | — | no | no | 2026-09-05 (tried) | The shim links over the S3's native USB-Serial/JTAG only; a UART bridge never carries it, and a classic ESP32 cannot run the S3 build. |
-| ESP32-C5 | — | — | — | — | — | Blocked: `espressif32@6.12.0` (arduino-esp32 2.0.17) has no C5 board defs. |
 
 | Phone | OS | Role | Last [REAL] | Notes |
 |---|---|---|---|---|
