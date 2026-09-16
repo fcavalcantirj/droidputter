@@ -30,10 +30,14 @@ The ESP32-S3 runs the app; the phone adds screen, keys, location and a flasher. 
 
 </div>
 
-<p align="center">
-<img src="docs/img/stellar-map-phone.png" alt="wisnc/stellar-map running on a bare ESP32-S3 devkit, mirrored on the phone" width="900">
-</p>
-<p align="center"><em>wisnc/stellar-map on a bare ESP32-S3-N16R8 devkit with no display: built from GitHub on demand, flashed from the phone, mirrored on the phone.</em></p>
+<table align="center">
+<tr>
+<td align="center"><img src="docs/img/hero-bare-esp32s3-phone.jpg" width="400" alt="a bare ESP32-S3 devkit on an OTG cable, the phone showing the star map"></td>
+<td align="center"><img src="docs/img/stellar-map-bare-esp32s3.gif" width="300" alt="the same setup, live: panning the star map from the phone"></td>
+</tr>
+</table>
+<p align="center"><em>A bare ESP32-S3-N16R8 devkit, an OTG cable, a phone. wisnc/stellar-map built from GitHub on demand,
+flashed from the phone, mirrored and driven from the phone. No display on the board.</em></p>
 
 ## What it is
 
@@ -55,7 +59,7 @@ own TFT shows the same frames next to the phone.
 </tr>
 <tr>
 <td align="center"><img src="docs/img/app-flash-verdict.png" width="440" alt="flash and verdict controls"><br><sub>Flash from phone, then one tap files the works / broken verdict.</sub></td>
-<td align="center"><img src="docs/img/phone-sticks3-pensebem-2026-09-16.png" width="440" alt="StickS3 with its screen dark"><br><sub>A StickS3 with its own screen dark playing a Cardputer game from the phone.</sub></td>
+<td align="center"><img src="docs/img/stellar-map-phone.png" width="440" alt="the mirror without the keyboard"><br><sub>Hide keys: the mirror takes the whole phone screen.</sub></td>
 </tr>
 </table>
 
