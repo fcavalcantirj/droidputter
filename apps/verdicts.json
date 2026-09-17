@@ -130,5 +130,16 @@
     "note": "auto: boots=0 hello=false frames=0",
     "date": "2026-09-17",
     "reporter": "device-4bdfaba5"
+  },
+  {
+    "name": "esp32marauder",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "4e038061e8c50af7b76f36acc41647e1043a6911c89ea397b013ad3a92d39a6a",
+    "shim_commit": "5d7970a",
+    "board": "unknown",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-17",
+    "reporter": "device-4bdfaba5"
   }
 ]
