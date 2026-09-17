@@ -9,12 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
-import android.Manifest
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import androidx.core.content.ContextCompat
 import com.droidputter.MainActivity
 
 private const val CHANNEL_ID = "droidputter-link"
@@ -35,16 +32,10 @@ class LinkForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val subtitle = intent?.getStringExtra(EXTRA_SUBTITLE) ?: "Linked"
-        // The service type mask is what lets the GPS feed keep running with the screen off: without the
-        // LOCATION type Android 14+ stops delivering fixes to a backgrounded app. LOCATION is only legal
-        // (SecurityException otherwise) while ACCESS_FINE_LOCATION is granted, so it is added only when the
-        // caller says the feed is on and the permission is checked here again.
-        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-        val wantLocation = intent?.getBooleanExtra(EXTRA_LOCATION, false) == true
-        if (wantLocation && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-        }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(subtitle), type)
+        // connectedDevice only. The LOCATION type (fixes with the screen off) was dropped for the Play release on
+        // 2026-09-17: the GPS feed runs while the app is on screen, which is the normal case here. Re-adding it
+        // means the FOREGROUND_SERVICE_LOCATION permission, the manifest type and a Play declaration with a video.
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(subtitle), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         return START_STICKY
     }
 
@@ -76,7 +67,8 @@ class LinkForegroundService : Service() {
     }
 
     companion object {
-        /** (Re)starts the service; calling it again while running just updates the notification and the type mask. */
+        /** (Re)starts the service; calling it again while running just updates the notification. [location] is kept
+         *  for the callers' sake and ignored (see onStartCommand). */
         fun start(context: Context, subtitle: String, location: Boolean = false) {
             val intent = Intent(context, LinkForegroundService::class.java)
                 .putExtra(EXTRA_SUBTITLE, subtitle)

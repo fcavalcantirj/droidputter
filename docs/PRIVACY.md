@@ -8,8 +8,8 @@ Effective 2026-09-17. Applies to the Droidputter Android app (`com.droidputter`)
   ESP32-S3 you plugged in. They never leave the cable.
 - **Location.** When you tap "Start GPS feed", the app reads the phone's GNSS sentences and forwards them
   over USB to the connected ESP32-S3, so the app running there sees a GPS. Location is never stored and
-  never sent to any server. The feed runs only while you keep it on; a foreground-service notification
-  shows it is running. The app asks for the location permission only when you start the feed.
+  never sent to any server. The feed runs only while you keep it on and the app is on screen. The app asks
+  for the location permission only when you start the feed.
 - **Builds.** When you ask for a build, the app sends the GitHub repository name, the git ref and the build
   target to the Droidputter build proxy (`droidputter-proxy.vercel.app`), which runs the build on GitHub
   Actions in the public repository `fcavalcantirj/droidputter`. The request contains no personal data.

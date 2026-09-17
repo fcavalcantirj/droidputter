@@ -49,18 +49,13 @@ any ESP32-S3 devkit on its native USB port). Open source, MIT: https://github.co
   - Location: *not collected, not shared* (used on-device, forwarded over the USB cable only).
   - Everything else: not collected.
   - Security practices: data encrypted in transit (HTTPS); deletion on request.
-- **Foreground service permissions (Android 14+ declaration):**
-  - `connectedDevice`: keeps the USB link to the ESP32-S3 alive while the screen is off or the app is in
-    the background; without it Android suspends the USB reader and the board goes silent. Video:
-    plug the board, link comes up, press power, screen off 30 s, screen on, the mirror is still live.
-  - `location`: while the user has turned the GPS feed on, the service keeps forwarding the phone's GNSS
-    sentences to the board with the screen off (the board's app expects a continuous GPS stream). Video:
-    Connection screen, tap "Start GPS feed", grant location, the ESP app shows the fix, press power for
-    30 s, screen on, the fix is still updating; tap "Stop GPS feed".
-- **Location permission declaration:** foreground only (no background location permission requested);
-  core feature: "forwards the phone's position to the connected device"; prominent disclosure = the
-  permission dialog is shown only when the user taps "Start GPS feed", and the Connection screen states
-  what the feed does.
+- **Foreground service permissions (Android 14+ declaration):** only `connectedDevice`, task "Continuous data
+  transfer to an external device": the service keeps the USB link to the ESP32-S3 alive while the screen is
+  off or the app is in the background; without it Android suspends the USB reader and the board goes silent.
+  Video: plug the board, link comes up, press power, screen off 30 s, screen on, the mirror is still live.
+  (The `location` type was dropped on 2026-09-17: the GPS feed runs while the app is on screen.)
+- **Location permission:** foreground only, requested when the user taps "Start GPS feed"; core feature:
+  "forwards the phone's position to the connected device"; no background location.
 
 ## Release checklist (you, in the console)
 
