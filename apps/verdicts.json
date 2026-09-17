@@ -185,5 +185,16 @@
     "note": "",
     "date": "2026-09-17",
     "reporter": "device-7cb6532d"
+  },
+  {
+    "name": "m5cardputer-audio-stream-server",
+    "env": "m5cardputer",
+    "firmware_sha256": "12ed14f392d8e23c9c63cc0d591fb81ac15be417dff1881c6af1906b4cb03315",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 7 frames in 20 s",
+    "date": "2026-09-17",
+    "reporter": "device-7cb6532d"
   }
 ]
