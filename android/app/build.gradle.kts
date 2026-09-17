@@ -45,12 +45,12 @@ if (releaseKeystore != null && !releaseSigningReady) {
 
 android {
     namespace = "com.droidputter"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.droidputter"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // release.yml derives both from the tag (vMAJOR.MINOR.PATCH -> code MAJOR*10000 + MINOR*100 + PATCH);
         // local and android.yml builds keep these defaults.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
