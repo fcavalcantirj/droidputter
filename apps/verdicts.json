@@ -196,5 +196,16 @@
     "note": "auto: linked, 7 frames in 20 s",
     "date": "2026-09-17",
     "reporter": "device-7cb6532d"
+  },
+  {
+    "name": "cardputer-system-monitor",
+    "env": "m5cardputer",
+    "firmware_sha256": "7ed51f45fa7515ff04b2e7d5ac2cd555c85a56e0a17b321968debce59eb226a1",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 4 frames in 20 s",
+    "date": "2026-09-17",
+    "reporter": "device-7cb6532d"
   }
 ]
