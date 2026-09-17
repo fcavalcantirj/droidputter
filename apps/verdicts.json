@@ -295,5 +295,16 @@
     "note": "auto: linked, 735 frames in 20 s",
     "date": "2026-09-17",
     "reporter": "device-e0c9aa14"
+  },
+  {
+    "name": "m5-palnagotchi",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "4d84e832980ddc847c84f5c1dca670d6c606dda4a8ff977e749f586c3b4e46e3",
+    "shim_commit": "5d7970a",
+    "board": "unknown",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-17",
+    "reporter": "device-29be6274"
   }
 ]
