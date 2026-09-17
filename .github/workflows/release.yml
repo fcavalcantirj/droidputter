@@ -52,7 +52,12 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon :core:test :core:koverVerify :app:assembleRelease :app:bundleRelease
+          # vMAJOR.MINOR.PATCH -> versionName MAJOR.MINOR.PATCH, versionCode MAJOR*10000 + MINOR*100 + PATCH
+          V="${GITHUB_REF_NAME#v}"
+          [[ "$V" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || { echo "::error::tag must be vMAJOR.MINOR.PATCH, got $GITHUB_REF_NAME"; exit 1; }
+          CODE=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+          echo "versionName=$V versionCode=$CODE"
+          ./gradlew --no-daemon -PversionName="$V" -PversionCode="$CODE" :core:test :core:koverVerify :app:assembleRelease :app:bundleRelease
           bash gates.sh
           ls -la app/build/outputs/apk/release/app-release.apk app/build/outputs/bundle/release/app-release.aab
 
@@ -61,6 +66,8 @@ jobs:
           mkdir -p dist
           cp android/app/build/outputs/apk/release/app-release.apk "dist/droidputter-${GITHUB_REF_NAME}.apk"
           cp android/app/build/outputs/bundle/release/app-release.aab "dist/droidputter-${GITHUB_REF_NAME}.aab"
+          # R8 mapping: upload to Play Console (App bundle explorer > deobfuscation) so crash traces are readable
+          cp android/app/build/outputs/mapping/release/mapping.txt "dist/droidputter-${GITHUB_REF_NAME}-mapping.txt"
           cd dist
           sha256sum "droidputter-${GITHUB_REF_NAME}.apk" "droidputter-${GITHUB_REF_NAME}.aab" > SHA256SUMS
           cat SHA256SUMS
@@ -109,4 +116,21 @@ jobs:
             --notes-file dist/RELEASE_NOTES.md \
             "dist/droidputter-${GITHUB_REF_NAME}.apk" \
             "dist/droidputter-${GITHUB_REF_NAME}.aab" \
+            "dist/droidputter-${GITHUB_REF_NAME}-mapping.txt" \
             dist/SHA256SUMS
+
+      # Google Play, internal testing track. Runs only once PLAY_SERVICE_ACCOUNT_JSON exists (a Google Cloud
+      # service account invited to the Play Console with release permissions); the very first upload of the app
+      # must be done by hand in the console, after that every tag lands on the internal track by itself.
+      - name: Upload the AAB to Google Play (internal track)
+        if: ${{ env.PLAY_SA != '' }}
+        env:
+          PLAY_SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.droidputter
+          releaseFiles: dist/droidputter-${{ github.ref_name }}.aab
+          mappingFile: dist/droidputter-${{ github.ref_name }}-mapping.txt
+          track: internal
+          status: completed

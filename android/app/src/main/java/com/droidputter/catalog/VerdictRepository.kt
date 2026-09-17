@@ -31,6 +31,9 @@ class VerdictRepository(private val context: Context, private val proxy: BuildPr
     // Side files: the verdict records keep the exact shape apps/verdicts.json has.
     private val sentFile = File(context.filesDir, "my_verdicts_sent.json")
     private val reporterFile = File(context.filesDir, "reporter_id")
+    // Play Store data-safety honesty: a verdict leaves the phone (anonymous device id + result, published as a
+    // public GitHub issue) only after the user agreed once; until then every verdict stays in my_verdicts.json.
+    private val consentFile = File(context.filesDir, "verdict_consent")
 
     @Volatile var remote: List<Verdict> = loadInitial()
         private set
@@ -67,6 +70,15 @@ class VerdictRepository(private val context: Context, private val proxy: BuildPr
                 conn.disconnect()
             }
         }.onFailure { Log.w(TAG, "verdicts refresh failed: ${it.message}") }.getOrDefault(false)
+    }
+
+    /** True once the user agreed to share verdicts publicly (one dialog, remembered for the install). */
+    @Volatile var consented: Boolean = consentFile.isFile
+        private set
+
+    fun grantConsent() {
+        consented = true
+        runCatching { consentFile.writeText("1") }.onFailure { Log.w(TAG, "consent not saved: ${it.message}") }
     }
 
     fun addLocal(v: Verdict) {
@@ -115,6 +127,7 @@ class VerdictRepository(private val context: Context, private val proxy: BuildPr
      */
     suspend fun resendUnsent(): Resend {
         val filed = ArrayList<VerdictReceipt>()
+        if (!consented) return Resend(filed, null)
         for (v in unsent()) {
             val record = if (v.reporter.isNullOrBlank()) v.copy(reporter = reporter) else v
             submit(record).onSuccess { filed += it }.onFailure { return Resend(filed, it.message) }

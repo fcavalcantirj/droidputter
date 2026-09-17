@@ -125,6 +125,8 @@ class MainActivity : ComponentActivity() {
     private val myBuildsRepository: MyBuildsRepository by lazy { MyBuildsRepository(this) }
     private var buildsVersion: Int by mutableStateOf(0)   // bumped when a proxy build lands so the list re-reads
     private var buildState: BuildRequestState? by mutableStateOf(null)
+    /** A verdict waiting for the one-time "share publicly?" answer (Play data-safety: nothing leaves the phone before). */
+    private var consentPromptFor: Pair<Verdict, String>? by mutableStateOf(null)
     /** Which board the next on-demand build is for: the bare ESP32-S3 (north star) or the Cardputer ADV (desk oracle). */
     private var buildTarget: String by mutableStateOf(BuildProxy.ENV_VIRTUAL)
     private var catalogNavigateTo: CatalogEntry? by mutableStateOf(null)   // the detail the catalog should open next
@@ -188,6 +190,31 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             MaterialTheme {
+                consentPromptFor?.let { (pending, label) ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { consentPromptFor = null },
+                        title = { Text("Share your verdicts?") },
+                        text = {
+                            Text(
+                                "Works / Broken reports are published as public GitHub issues in the Droidputter repo so " +
+                                    "everyone sees which apps run. A report carries the app name, the firmware hash, the board, " +
+                                    "the result and this phone's anonymous id (${verdictRepository.reporter}). No account, no " +
+                                    "location, nothing else. You can keep verdicts on this phone instead.",
+                            )
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                consentPromptFor = null
+                                verdictRepository.grantConsent()
+                                sendVerdict(pending, label)
+                                lifecycleScope.launch { verdictRepository.resendUnsent() }
+                            }) { Text("Share") }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = { consentPromptFor = null }) { Text("Keep on this phone") }
+                        },
+                    )
+                }
                 Surface {
                     val controller = remember { screenController }
                     if (showConnectionScreen) {
@@ -562,6 +589,17 @@ class MainActivity : ComponentActivity() {
         verdictRepository.addLocal(v)
         verdictVersion++
         verdictRepository.sentReceipt(v)?.let { flashStatus = "$label already sent (#${it.issueNumber})"; return }
+        if (!verdictRepository.consented) {
+            // First verdict on this install: ask once before anything leaves the phone (the record is public).
+            flashStatus = "$label saved on this phone"
+            consentPromptFor = v to label
+            return
+        }
+        sendVerdict(v, label)
+    }
+
+    /** The consent dialog's "Share" answer: remember it, then send the verdict that triggered it and any older ones. */
+    private fun sendVerdict(v: Verdict, label: String) {
         flashStatus = "$label saved; sending…"
         lifecycleScope.launch {
             verdictRepository.submit(v)
