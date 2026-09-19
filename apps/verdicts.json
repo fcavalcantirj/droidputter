@@ -427,5 +427,16 @@
     "note": "auto: boots=0 hello=false frames=0",
     "date": "2026-09-19",
     "reporter": "device-9dc87ec6"
+  },
+  {
+    "name": "ultimate-remote",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "b488411670eef23df79dc5ada60475cf2cb5473aa8eb908817e8023c1c84c313",
+    "shim_commit": "5d7970a",
+    "board": "unknown",
+    "result": "works",
+    "note": "",
+    "date": "2026-09-19",
+    "reporter": "device-95a5760c"
   }
 ]
