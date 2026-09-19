@@ -416,5 +416,16 @@
     "note": "auto: linked, 3 frames in 20 s",
     "date": "2026-09-19",
     "reporter": "device-9dc87ec6"
+  },
+  {
+    "name": "droidputter",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "8f37134663760e5bc7b3867106c77bd45f1a04a0e047907274e5ede51e497a91",
+    "shim_commit": "5d7970a",
+    "board": "unknown",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-19",
+    "reporter": "device-9dc87ec6"
   }
 ]
