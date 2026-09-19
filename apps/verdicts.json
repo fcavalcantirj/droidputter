@@ -680,5 +680,16 @@
     "note": "auto: linked, 5 frames in 20 s",
     "date": "2026-09-19",
     "reporter": "device-4aedd088"
+  },
+  {
+    "name": "m5cardputer_webradio",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "ef1304c8e12aa7d8b3f3427780eaf6fa0820802ad065054463e2b504eec35960",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "broken",
+    "note": "auto: boots=3 hello=true frames=358",
+    "date": "2026-09-19",
+    "reporter": "device-4aedd088"
   }
 ]
