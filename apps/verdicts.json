@@ -471,5 +471,16 @@
     "note": "auto: boots=0 hello=false frames=0",
     "date": "2026-09-19",
     "reporter": "device-d071d72f"
+  },
+  {
+    "name": "m5-palnagotchi",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "4d84e832980ddc847c84f5c1dca670d6c606dda4a8ff977e749f586c3b4e46e3",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-19",
+    "reporter": "device-d071d72f"
   }
 ]
