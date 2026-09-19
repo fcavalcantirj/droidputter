@@ -647,5 +647,16 @@
     "note": "auto: linked, 296 frames in 20 s",
     "date": "2026-09-19",
     "reporter": "device-4aedd088"
+  },
+  {
+    "name": "m5cardputer-audio-stream-server",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "1495f64f2c16efba71d216bea61039cd526d6797c69eae877ca7a9cf21d9aaf5",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 6 frames in 20 s",
+    "date": "2026-09-19",
+    "reporter": "device-4aedd088"
   }
 ]
