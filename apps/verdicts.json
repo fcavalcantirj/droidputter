@@ -603,5 +603,16 @@
     "note": "auto: boots=0 hello=false frames=0",
     "date": "2026-09-19",
     "reporter": "device-94ea1f8a"
+  },
+  {
+    "name": "cardputer",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "c69bcf9436be52270d6552cf4b9121913847680ba43c18485b3b0f1540778585",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 789 frames in 20 s",
+    "date": "2026-09-19",
+    "reporter": "device-94ea1f8a"
   }
 ]
