@@ -526,5 +526,16 @@
     "note": "",
     "date": "2026-09-19",
     "reporter": "device-d071d72f"
+  },
+  {
+    "name": "m5cardputer_audiospectrum",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "6ffcb41eccb1e59976d33d8672a9ae2972cf1b944eab1912ba3d1fa6e7188280",
+    "shim_commit": "5d7970a",
+    "board": "unknown",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-19",
+    "reporter": "device-d071d72f"
   }
 ]
