@@ -537,5 +537,16 @@
     "note": "auto: boots=0 hello=false frames=0",
     "date": "2026-09-19",
     "reporter": "device-d071d72f"
+  },
+  {
+    "name": "m5-example",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "e36f01e3aef3fb5bd4eed163189f54777cbccf5e350dce620a07e005f750dcf4",
+    "shim_commit": "5d7970a",
+    "board": "unknown",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-19",
+    "reporter": "device-d071d72f"
   }
 ]
