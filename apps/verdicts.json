@@ -438,5 +438,16 @@
     "note": "",
     "date": "2026-09-19",
     "reporter": "device-95a5760c"
+  },
+  {
+    "name": "cardputer-iss-tracker",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "a1bc3ecf3c712a573f3b87c527732e9b14c2839260f7f095bfe20fc39c92c062",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "broken",
+    "note": "auto: boots=0 hello=false frames=0",
+    "date": "2026-09-19",
+    "reporter": "device-d071d72f"
   }
 ]
