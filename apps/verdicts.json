@@ -713,5 +713,16 @@
     "note": "auto: linked, 13 frames in 20 s",
     "date": "2026-09-19",
     "reporter": "device-976d4d3f"
+  },
+  {
+    "name": "m5-example",
+    "env": "m5cardputer-virtual",
+    "firmware_sha256": "e36f01e3aef3fb5bd4eed163189f54777cbccf5e350dce620a07e005f750dcf4",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 3 frames in 20 s",
+    "date": "2026-09-20",
+    "reporter": "device-976d4d3f"
   }
 ]
