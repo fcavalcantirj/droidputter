@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -85,7 +86,9 @@ fun CatalogScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    // imePadding: under forced edge-to-edge the window is NOT resized for the keyboard, so the
+    // 'Build any GitHub repo' field (the build-on-demand entry point) would sit under it.
+    Column(modifier = modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
         if (current == null) {
             // Landscape phones have ~360 dp of height: only the tabs, the search field and Back are fixed
             // chrome; the caption, the build-any-repo row and the build status scroll WITH the list. Before

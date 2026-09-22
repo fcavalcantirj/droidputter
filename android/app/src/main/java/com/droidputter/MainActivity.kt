@@ -10,24 +10,40 @@ import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.systemGestures
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.droidputter.catalog.BuildFlow
@@ -181,6 +197,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // targetSdk 36: Android 15+ forces this window edge-to-edge (windowOptOutEdgeToEdgeEnforcement
+        // is deprecated AND disabled at 36) and reinterprets every LAYOUT_IN_DISPLAY_CUTOUT_MODE as
+        // ALWAYS, so a landscape-locked window already spans the status bar and a long-edge hole-punch.
+        // Calling it here makes API 26..34 lay out the same way -- one regime to reason about instead of
+        // two -- and asks for transparent bars; applyImmersive() drives their icon colour per screen.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         // Android 13+ needs this granted at runtime for LinkForegroundService's notification to
         // actually show; the foreground service itself still runs fine either way.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -215,8 +240,15 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
+                // The mirror runs immersive (see applyImmersive): the framebuffer scales by an INTEGER
+                // factor, so the ~80 px status bar plus the ~50 px gesture inset would cost a whole zoom
+                // step (5x -> 4x with the keys shown on the Poco). Catalog/Connection keep their bars.
+                LaunchedEffect(showConnectionScreen, showCatalogScreen) { applyImmersive() }
                 Surface {
                     val controller = remember { screenController }
+                    // How far a tappable thing must stay from a left/right window edge: the reported
+                    // back-gesture zone, floored at the value that empirically worked on MIUI.
+                    val edgeGuard = gestureEdgeGuard()
                     if (showConnectionScreen) {
                         ConnectionScreen(
                             status = connectionStatus,
@@ -227,6 +259,7 @@ class MainActivity : ComponentActivity() {
                             onToggleGps = ::toggleGpsFeed,
                             onProbeRom = ::probeRomBootloader,
                             onClose = { showConnectionScreen = false },
+                            modifier = Modifier.windowInsetsPadding(chromeInsets).padding(horizontal = edgeGuard),
                         )
                     } else if (showCatalogScreen) {
                         CatalogScreen(
@@ -253,73 +286,86 @@ class MainActivity : ComponentActivity() {
                             onNavigated = { catalogNavigateTo = null },
                             buildTarget = buildTarget,
                             onBuildTarget = { buildTarget = it },
+                            modifier = Modifier.windowInsetsPadding(chromeInsets).padding(horizontal = edgeGuard),
                         )
                     } else {
                         Column(Modifier.fillMaxSize()) {
-                            Box(Modifier.weight(1f).padding(0.dp)) {
+                            Box(Modifier.weight(1f)) {
                                 DroidputterScreen(controller)
-                                Button(
-                                    onClick = { showConnectionScreen = true },
-                                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                                // The pills get their own layer, held clear of a display cutout (on API 35+
+                                // every LAYOUT_IN_DISPLAY_CUTOUT_MODE is read as ALWAYS, and in landscape the
+                                // hole-punch lands on a LONG edge -- right where TopStart/TopEnd sit) and of
+                                // the OEM back-gesture zones (progress.txt:182, the swallowed Catalog tap).
+                                // Both are HORIZONTAL here, so they cost the mirror no zoom step: the
+                                // framebuffer needs 5x of the ~11x of width the phone has.
+                                Box(
+                                    Modifier.matchParentSize()
+                                        .windowInsetsPadding(WindowInsets.displayCutout)
+                                        .padding(horizontal = edgeGuard),
                                 ) {
-                                    Text(connectionStatus.state.name)
-                                }
-                                Button(
-                                    onClick = {
-                                        showCatalogScreen = true
-                                        // live community verdicts (falls back to the cached/seed copy offline), then the
-                                        // verdicts stored on this phone that never reached the repo (offline tap, proxy
-                                        // down, or a tap from before the one-tap POST existed) go out, oldest first.
-                                        lifecycleScope.launch {
-                                            if (verdictRepository.refresh()) verdictVersion++
-                                            val resend = verdictRepository.resendUnsent()
-                                            if (resend.filed.isNotEmpty() || resend.failed != null) {
-                                                val numbers = resend.filed.joinToString(", ") { "#${it.issueNumber}" }
-                                                flashStatus = "stored verdicts: ${resend.filed.size} filed" +
-                                                    (if (numbers.isNotEmpty()) " ($numbers)" else "") +
-                                                    (resend.failed?.let { "; stopped: $it" } ?: "")
-                                                Log.i(TAG, "verdict resend: filed=${resend.filed.size} $numbers failed=${resend.failed}")
+                                    Button(
+                                        onClick = { showConnectionScreen = true },
+                                        modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                                    ) {
+                                        Text(connectionStatus.state.name)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            showCatalogScreen = true
+                                            // live community verdicts (falls back to the cached/seed copy offline), then the
+                                            // verdicts stored on this phone that never reached the repo (offline tap, proxy
+                                            // down, or a tap from before the one-tap POST existed) go out, oldest first.
+                                            lifecycleScope.launch {
+                                                if (verdictRepository.refresh()) verdictVersion++
+                                                val resend = verdictRepository.resendUnsent()
+                                                if (resend.filed.isNotEmpty() || resend.failed != null) {
+                                                    val numbers = resend.filed.joinToString(", ") { "#${it.issueNumber}" }
+                                                    flashStatus = "stored verdicts: ${resend.filed.size} filed" +
+                                                        (if (numbers.isNotEmpty()) " ($numbers)" else "") +
+                                                        (resend.failed?.let { "; stopped: $it" } ?: "")
+                                                    Log.i(TAG, "verdict resend: filed=${resend.filed.size} $numbers failed=${resend.failed}")
+                                                }
                                             }
+                                            // live catalog index (same fallback); the entries list re-reads via catalogVersion
+                                            lifecycleScope.launch { if (catalogRepository.refresh()) catalogVersion++ }
+                                            // LauncherHub feed: ~3 MB, refreshed at most daily; the list re-reads via hubVersion
+                                            lifecycleScope.launch { if (hubRepository.refresh()) hubVersion++ }
+                                        },
+                                        modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+                                    ) {
+                                        Text("Catalog")
+                                    }
+                                    // Demo replay only when no device is attached: while a USB link is
+                                    // up it would feed a recording into the live screen model.
+                                    if (connectionStatus.state == LinkState.DETACHED) {
+                                        Button(
+                                            onClick = { startDemoReplay() },
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                                        ) {
+                                            Text("Replay fixture")
                                         }
-                                        // live catalog index (same fallback); the entries list re-reads via catalogVersion
-                                        lifecycleScope.launch { if (catalogRepository.refresh()) catalogVersion++ }
-                                        // LauncherHub feed: ~3 MB, refreshed at most daily; the list re-reads via hubVersion
-                                        lifecycleScope.launch { if (hubRepository.refresh()) hubVersion++ }
-                                    },
-                                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
-                                ) {
-                                    Text("Catalog")
-                                }
-                                // Demo replay only when no device is attached: while a USB link is
-                                // up it would feed a recording into the live screen model.
-                                if (connectionStatus.state == LinkState.DETACHED) {
-                                    Button(
-                                        onClick = { startDemoReplay() },
-                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                                    ) {
-                                        Text("Replay fixture")
+                                    } else {
+                                        // Felipe 2026-09-04: "the repaint one ... forced refresh both" -- the mirror can lag
+                                        // the board for a moment after a relink; one tap re-sends HELLO_ACK and the ESP
+                                        // repaints the whole screen (link-up resync) into the phone's copy.
+                                        Button(
+                                            onClick = { sendHelloAckNow() },
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                                        ) {
+                                            Text("Repaint")
+                                        }
                                     }
-                                } else {
-                                    // Felipe 2026-09-04: "the repaint one ... forced refresh both" -- the mirror can lag
-                                    // the board for a moment after a relink; one tap re-sends HELLO_ACK and the ESP
-                                    // repaints the whole screen (link-up resync) into the phone's copy.
+                                    // Hide the soft keyboard for a full-height mirror (8x on the Poco).
                                     Button(
-                                        onClick = { sendHelloAckNow() },
-                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                                        onClick = { showKeyboard = !showKeyboard },
+                                        modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
                                     ) {
-                                        Text("Repaint")
+                                        Text(if (showKeyboard) "Hide keys" else "Keys")
                                     }
-                                }
-                                // Hide the soft keyboard for a full-height mirror (8x on the Poco).
-                                Button(
-                                    onClick = { showKeyboard = !showKeyboard },
-                                    modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
-                                ) {
-                                    Text(if (showKeyboard) "Hide keys" else "Keys")
                                 }
                             }
                             if (showKeyboard) {
-                                SoftKeyboard(onKey = ::sendKey, modifier = Modifier.fillMaxWidth())
+                                SoftKeyboard(onKey = ::sendKey, edgeGuard = edgeGuard, modifier = Modifier.fillMaxWidth())
                             }
                         }
                     }
@@ -656,6 +702,42 @@ class MainActivity : ComponentActivity() {
         transport?.write(ESPTOOL_SYNC)
     }
 
+    /**
+     * Immersive on the mirror, bars on the menus. The mirror IS the product and
+     * [com.droidputter.render.FramebufferCanvas] scales by an INTEGER factor, so the status bar
+     * (~80 px) plus the gesture inset (~50 px) would cost a whole zoom step (measured on the Poco:
+     * 697 px of canvas with the keys shown is 5x with 22 px to spare; 567 px is only 4x, -36 % of
+     * the mirror). Hiding them is the only way to keep the zoom. Catalog/Connection are scrolling
+     * Material screens with nothing to quantise, so they keep the clock and the battery.
+     *
+     * BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE: a swipe from an edge brings the bars back over the
+     * content for a few seconds and then auto-hides them. Transient bars report NO insets, so they
+     * do briefly clip the top of the pills -- accepted, it is user-initiated and self-clearing;
+     * defending against it means permanently reserving the status-bar height, i.e. the zoom step.
+     *
+     * Called from a LaunchedEffect on the screen state and from [onWindowFocusChanged], because
+     * every separate window restores the bars: the consent AlertDialog, the runtime-permission
+     * prompts, and the UsbManager permission dialog that fires on the critical path of every
+     * device attach.
+     */
+    private fun applyImmersive() {
+        val bars = WindowCompat.getInsetsController(window, window.decorView)
+        bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        val onMirror = !showConnectionScreen && !showCatalogScreen
+        if (onMirror) bars.hide(WindowInsetsCompat.Type.systemBars())
+        else bars.show(WindowInsetsCompat.Type.systemBars())
+        // The mirror is black (light icons); Catalog/Connection sit on MaterialTheme's light surface
+        // and Android 15+ draws no automatic scrim, so white-on-white is what happens without this
+        // (docs/img/app-catalog.png).
+        bars.isAppearanceLightStatusBars = !onMirror
+        bars.isAppearanceLightNavigationBars = !onMirror
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyImmersive()
+    }
+
     /** The resync action (task's "Send HELLO_ACK again"): the ESP repaints the whole screen on
      * every HELLO_ACK it receives (droidputter.cpp's link-up resync), so replaying this is also
      * the manual "redraw everything" button when the phone's own copy looks stale. */
@@ -710,4 +792,37 @@ class MainActivity : ComponentActivity() {
         }
         return File(dir, "boot").path
     }
+}
+
+/**
+ * What app chrome must never be drawn under: the system bars plus the display cutout.
+ *
+ * Deliberately NOT [androidx.compose.foundation.layout.safeDrawing]: it unions the IME in, and an
+ * IME-driven resize of the mirror costs a whole integer zoom step (CatalogScreen asks for
+ * imePadding() on its own text field instead). Not safeContent either -- that adds the ~48 dp
+ * home-swipe band for no visual gain.
+ */
+private val chromeInsets: WindowInsets
+    @Composable get() = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+
+/** The edge guard that empirically worked on MIUI (SoftKeyboard.kt, 2026-09-03). */
+private val MIN_EDGE_GUARD = 28.dp
+
+/**
+ * How far a tappable thing must stay from the left/right window edge. Android reports the
+ * back-gesture zone in [WindowInsets.systemGestures], but MIUI/HyperOS under-reports it: the
+ * Catalog pill's taps are still swallowed at 12 dp (progress.txt:182) and Enter never reached the
+ * app until the keyboard got a hardcoded 28 dp. So: the reported value, floored at the one that
+ * worked.
+ */
+@Composable
+private fun gestureEdgeGuard(): Dp {
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val gestures = WindowInsets.systemGestures
+    val widestPx = maxOf(
+        gestures.getLeft(density, layoutDirection),
+        gestures.getRight(density, layoutDirection),
+    )
+    return maxOf(with(density) { widestPx.toDp() }, MIN_EDGE_GUARD)
 }

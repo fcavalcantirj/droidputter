@@ -41,16 +41,24 @@ fun SoftKeyboard(
     onKey: (row: Int, col: Int, down: Boolean) -> Unit,
     modifier: Modifier = Modifier,
     keyHeight: Dp = 34.dp,
+    /**
+     * Horizontal guard against OEM edge-gesture zones. MainActivity passes
+     * max(WindowInsets.systemGestures left/right, 28.dp); the 28.dp default is the value that
+     * stopped MIUI swallowing Enter (2026-09-03) and stays the floor, because MIUI under-reports.
+     */
+    edgeGuard: Dp = 28.dp,
 ) {
     var fnLatched by remember { mutableStateOf(false) }
     var shiftLatched by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     val rows = remember { CardputerKeyMap.KEYS.groupBy { it.row }.toSortedMap() }
 
-    // Horizontal padding keeps the edge columns (backspace, \\, enter, space) out of MIUI's
-    // back-gesture zones, which swallowed edge taps (Enter never reached the app, 2026-09-03).
+    // [edgeGuard] keeps the edge columns (backspace, \\, enter, space) out of the OEM back-gesture
+    // zones, which swallowed edge taps (Enter never reached the app on MIUI, 2026-09-03). It is now
+    // the reported systemGestures inset floored at that hardcoded 28.dp. The BOTTOM gesture pill
+    // needs nothing here: the mirror screen runs immersive, so the nav bar is hidden.
     androidx.compose.foundation.layout.Column(
-        modifier = modifier.background(Color(0xFF1A1A1A)).padding(horizontal = 28.dp, vertical = 2.dp),
+        modifier = modifier.background(Color(0xFF1A1A1A)).padding(horizontal = edgeGuard, vertical = 2.dp),
     ) {
         rows.forEach { (_, keysInRow) ->
             Row(modifier = Modifier.fillMaxWidth()) {
