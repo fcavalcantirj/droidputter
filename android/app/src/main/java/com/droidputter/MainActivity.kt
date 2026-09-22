@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -83,6 +84,7 @@ import com.droidputter.gps.GpsSentenceSource
 import com.droidputter.keyboard.SoftKeyboard
 import com.droidputter.link.LinkForegroundService
 import com.droidputter.render.DroidputterScreen
+import com.droidputter.render.StatusStripHeight
 import com.droidputter.render.ScreenController
 import com.droidputter.usb.LinkStatus
 import com.droidputter.usb.UsbDpTransport
@@ -292,76 +294,74 @@ class MainActivity : ComponentActivity() {
                         Column(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(1f)) {
                                 DroidputterScreen(controller)
-                                // The pills get their own layer, held clear of a display cutout (on API 35+
-                                // every LAYOUT_IN_DISPLAY_CUTOUT_MODE is read as ALWAYS, and in landscape the
-                                // hole-punch lands on a LONG edge -- right where TopStart/TopEnd sit) and of
-                                // the OEM back-gesture zones (progress.txt:182, the swallowed Catalog tap).
-                                // Both are HORIZONTAL here, so they cost the mirror no zoom step: the
-                                // framebuffer needs 5x of the ~11x of width the phone has.
-                                Box(
-                                    Modifier.matchParentSize()
-                                        .windowInsetsPadding(WindowInsets.displayCutout)
-                                        .padding(horizontal = edgeGuard),
+                                // The two top pills clear the app's own status strip (the board/app
+                                // name) instead of sitting on it, and every pill asks the platform NOT to
+                                // treat its box as an edge-gesture zone -- that is what defends the taps
+                                // MIUI was swallowing (progress.txt:182), rather than shoving the buttons
+                                // inward off the corners.
+                                Button(
+                                    onClick = { showConnectionScreen = true },
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                                        .padding(top = StatusStripHeight).systemGestureExclusion(),
                                 ) {
-                                    Button(
-                                        onClick = { showConnectionScreen = true },
-                                        modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
-                                    ) {
-                                        Text(connectionStatus.state.name)
-                                    }
-                                    Button(
-                                        onClick = {
-                                            showCatalogScreen = true
-                                            // live community verdicts (falls back to the cached/seed copy offline), then the
-                                            // verdicts stored on this phone that never reached the repo (offline tap, proxy
-                                            // down, or a tap from before the one-tap POST existed) go out, oldest first.
-                                            lifecycleScope.launch {
-                                                if (verdictRepository.refresh()) verdictVersion++
-                                                val resend = verdictRepository.resendUnsent()
-                                                if (resend.filed.isNotEmpty() || resend.failed != null) {
-                                                    val numbers = resend.filed.joinToString(", ") { "#${it.issueNumber}" }
-                                                    flashStatus = "stored verdicts: ${resend.filed.size} filed" +
-                                                        (if (numbers.isNotEmpty()) " ($numbers)" else "") +
-                                                        (resend.failed?.let { "; stopped: $it" } ?: "")
-                                                    Log.i(TAG, "verdict resend: filed=${resend.filed.size} $numbers failed=${resend.failed}")
-                                                }
+                                    Text(connectionStatus.state.name)
+                                }
+                                Button(
+                                    onClick = {
+                                        showCatalogScreen = true
+                                        // live community verdicts (falls back to the cached/seed copy offline), then the
+                                        // verdicts stored on this phone that never reached the repo (offline tap, proxy
+                                        // down, or a tap from before the one-tap POST existed) go out, oldest first.
+                                        lifecycleScope.launch {
+                                            if (verdictRepository.refresh()) verdictVersion++
+                                            val resend = verdictRepository.resendUnsent()
+                                            if (resend.filed.isNotEmpty() || resend.failed != null) {
+                                                val numbers = resend.filed.joinToString(", ") { "#${it.issueNumber}" }
+                                                flashStatus = "stored verdicts: ${resend.filed.size} filed" +
+                                                    (if (numbers.isNotEmpty()) " ($numbers)" else "") +
+                                                    (resend.failed?.let { "; stopped: $it" } ?: "")
+                                                Log.i(TAG, "verdict resend: filed=${resend.filed.size} $numbers failed=${resend.failed}")
                                             }
-                                            // live catalog index (same fallback); the entries list re-reads via catalogVersion
-                                            lifecycleScope.launch { if (catalogRepository.refresh()) catalogVersion++ }
-                                            // LauncherHub feed: ~3 MB, refreshed at most daily; the list re-reads via hubVersion
-                                            lifecycleScope.launch { if (hubRepository.refresh()) hubVersion++ }
-                                        },
-                                        modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
-                                    ) {
-                                        Text("Catalog")
-                                    }
-                                    // Demo replay only when no device is attached: while a USB link is
-                                    // up it would feed a recording into the live screen model.
-                                    if (connectionStatus.state == LinkState.DETACHED) {
-                                        Button(
-                                            onClick = { startDemoReplay() },
-                                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                                        ) {
-                                            Text("Replay fixture")
                                         }
-                                    } else {
-                                        // Felipe 2026-09-04: "the repaint one ... forced refresh both" -- the mirror can lag
-                                        // the board for a moment after a relink; one tap re-sends HELLO_ACK and the ESP
-                                        // repaints the whole screen (link-up resync) into the phone's copy.
-                                        Button(
-                                            onClick = { sendHelloAckNow() },
-                                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                                        ) {
-                                            Text("Repaint")
-                                        }
-                                    }
-                                    // Hide the soft keyboard for a full-height mirror (8x on the Poco).
+                                        // live catalog index (same fallback); the entries list re-reads via catalogVersion
+                                        lifecycleScope.launch { if (catalogRepository.refresh()) catalogVersion++ }
+                                        // LauncherHub feed: ~3 MB, refreshed at most daily; the list re-reads via hubVersion
+                                        lifecycleScope.launch { if (hubRepository.refresh()) hubVersion++ }
+                                    },
+                                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp)
+                                        .padding(top = StatusStripHeight).systemGestureExclusion(),
+                                ) {
+                                    Text("Catalog")
+                                }
+                                // Demo replay only when no device is attached: while a USB link is
+                                // up it would feed a recording into the live screen model.
+                                if (connectionStatus.state == LinkState.DETACHED) {
                                     Button(
-                                        onClick = { showKeyboard = !showKeyboard },
-                                        modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
+                                        onClick = { startDemoReplay() },
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)
+                                            .systemGestureExclusion(),
                                     ) {
-                                        Text(if (showKeyboard) "Hide keys" else "Keys")
+                                        Text("Replay fixture")
                                     }
+                                } else {
+                                    // Felipe 2026-09-04: "the repaint one ... forced refresh both" -- the mirror can lag
+                                    // the board for a moment after a relink; one tap re-sends HELLO_ACK and the ESP
+                                    // repaints the whole screen (link-up resync) into the phone's copy.
+                                    Button(
+                                        onClick = { sendHelloAckNow() },
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)
+                                            .systemGestureExclusion(),
+                                    ) {
+                                        Text("Repaint")
+                                    }
+                                }
+                                // Hide the soft keyboard for a full-height mirror (8x on the Poco).
+                                Button(
+                                    onClick = { showKeyboard = !showKeyboard },
+                                    modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                                        .systemGestureExclusion(),
+                                ) {
+                                    Text(if (showKeyboard) "Hide keys" else "Keys")
                                 }
                             }
                             if (showKeyboard) {

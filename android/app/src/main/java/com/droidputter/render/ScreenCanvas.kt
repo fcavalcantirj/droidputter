@@ -22,6 +22,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Height of the app's own status strip. Shared so the mirror's overlay buttons can be dropped
+ * clear of it (MainActivity) without a second magic number drifting from this one. */
+val StatusStripHeight = 20.dp
+
 /** Full-screen letterboxed view of a [ScreenController]'s framebuffer, with a thin status
  * bar naming the linked board/app (from HELLO) above it. */
 @Composable
@@ -47,7 +51,7 @@ private fun StatusBar(controller: ScreenController) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.DarkGray)
-            .height(20.dp)
+            .height(StatusStripHeight)
             .wrapContentHeight(Alignment.CenterVertically)
             .padding(horizontal = 6.dp),
     )
