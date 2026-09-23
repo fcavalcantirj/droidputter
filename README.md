@@ -50,7 +50,7 @@ own TFT shows the same frames next to the phone.
 
 <table>
 <tr>
-<td align="center"><img src="docs/img/stellar-map-phone-keys.png" width="440" alt="star map with the soft keyboard"><br><sub>The soft keyboard is the Cardputer's own 4x14 matrix, fn and shift layers included.</sub></td>
+<td align="center"><img src="docs/img/stellar-map-phone-keys.jpg" width="440" alt="star map with the soft keyboard, the overlay buttons in the corners and no system bars"><br><sub>The soft keyboard is the Cardputer's own 4x14 matrix, fn and shift layers included.</sub></td>
 <td align="center"><img src="docs/img/phone-bare-s3-devkit-stellar-2026-09-16.png" width="440" alt="bare devkit, same app"><br><sub>Same app, panned from the phone. Nothing on the board but the chip.</sub></td>
 </tr>
 <tr>
