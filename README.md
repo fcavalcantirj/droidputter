@@ -66,7 +66,7 @@ own TFT shows the same frames next to the phone.
 ## How to use
 
 1. Install the release APK from https://github.com/fcavalcantirj/droidputter/releases
-   (`adb install droidputter-<tag>.apk`, e.g. `droidputter-v0.0.1.apk`, or open the file on the
+   (`adb install droidputter-<tag>.apk`, e.g. `droidputter-v0.0.6.apk`, or open the file on the
    phone). Android 8+ with USB-OTG host support.
 2. Plug an ESP32-S3 into the phone's USB-C port with an OTG cable, into the board's native USB port.
    Use a known-good data cable: one cable gave "no Type-C partner" (2026-09-02).
@@ -92,7 +92,10 @@ own TFT shows the same frames next to the phone.
    after the reset (2026-09-16).
 9. Use it: the ESP's screen is the phone's screen. The soft keyboard is the Cardputer's 4x14 matrix;
    **fn** and **shift** latch on a tap (the key caps switch to the fn or shifted legends) until
-   tapped again; **Hide keys / Keys** gives the mirror the whole screen.
+   tapped again; **Hide keys / Keys** gives the mirror the whole screen. The mirror runs full screen
+   with the Android status and navigation bars hidden, so nothing covers the board's pixels and the
+   mirror keeps its zoom step; swipe in from an edge to bring the bars back for a few seconds. The
+   Catalog and Connection screens keep their bars.
 10. A Bluetooth or USB keyboard attached to the phone works too: every key with a Cardputer position
     is passed through (key repeats swallowed); the rest reach Android as usual.
 11. GPS: open the Connection screen and tap **Start GPS feed**; grant location once. The phone's
