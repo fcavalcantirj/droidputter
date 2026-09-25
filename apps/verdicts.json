@@ -790,5 +790,16 @@
     "note": "",
     "date": "2026-09-25",
     "reporter": "device-4e0fced1"
+  },
+  {
+    "name": "m5stack-cardputer-adv-gps-tracker",
+    "env": "m5cardputer",
+    "firmware_sha256": "06104c301dcead2339e59bd0fe52b407c32539db1593376a18eecc4ce0f5f9af",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "works",
+    "note": "auto: linked, 860 frames in 20 s",
+    "date": "2026-09-25",
+    "reporter": "device-4e0fced1"
   }
 ]
