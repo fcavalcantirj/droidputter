@@ -779,5 +779,16 @@
     "note": "",
     "date": "2026-09-23",
     "reporter": "device-8871f60c"
+  },
+  {
+    "name": "m5porkchop",
+    "env": "m5cardputer",
+    "firmware_sha256": "3608ebb1d9aa7b29813900a09782f252410df079a159f23b621dc2783d16d776",
+    "shim_commit": "5d7970a",
+    "board": "cardputer-adv",
+    "result": "broken",
+    "note": "",
+    "date": "2026-09-25",
+    "reporter": "device-4e0fced1"
   }
 ]
